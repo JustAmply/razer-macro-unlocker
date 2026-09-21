@@ -98,6 +98,11 @@ user32.FindWindowW.restype = wintypes.HWND
 user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
 user32.PostMessageW.restype = wintypes.BOOL
 user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, WPARAM, LPARAM]
+UINT_PTR = ctypes.c_size_t
+user32.SetTimer.restype = UINT_PTR
+user32.SetTimer.argtypes = [wintypes.HWND, UINT_PTR, wintypes.UINT, ctypes.c_void_p]
+user32.KillTimer.restype = wintypes.BOOL
+user32.KillTimer.argtypes = [wintypes.HWND, UINT_PTR]
 
 # Razer Device Registry with known PIDs and protocol parameters
 RAZER_DEVICES = {
@@ -211,11 +216,15 @@ WM_DEVICECHANGE = 0x0219
 WM_POWERBROADCAST = 0x0218
 PBT_APMRESUMEAUTOMATIC = 0x0012
 PBT_APMRESUMESUSPEND = 0x0007
+WM_TIMER = 0x0113
 
 ERROR_ALREADY_EXISTS = 183
 SINGLE_INSTANCE_MUTEX = "Local\\RazerMacroUnlocker_SingleInstance"
 WM_APP = 0x8000
 WM_APP_RESCAN = WM_APP + 1
+
+TIMER_ID_DEBOUNCE = 1
+DEBOUNCE_DELAY_MS = 1000
 
 WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, WPARAM, LPARAM)
 
@@ -229,11 +238,18 @@ class WNDCLASSW(ctypes.Structure):
     ]
 
 def wnd_proc(hwnd, msg, wparam, lparam):
-    # Re-unlock keyboards on device reconnect, standby wake-up, or rescan request
-    if msg == WM_DEVICECHANGE or (msg == WM_POWERBROADCAST and wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND)) or msg == WM_APP_RESCAN:
-        time.sleep(1.0) # Small delay to allow USB enumeration to complete
+    # Debounce device reconnect, standby wake-up, or rescan events
+    if msg in (WM_DEVICECHANGE, WM_APP_RESCAN) or (msg == WM_POWERBROADCAST and wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND)):
+        # Reset timer so rapid successive events are collapsed into a single unlock
+        user32.KillTimer(hwnd, TIMER_ID_DEBOUNCE)
+        user32.SetTimer(hwnd, TIMER_ID_DEBOUNCE, DEBOUNCE_DELAY_MS, None)
+        return 0
+
+    if msg == WM_TIMER and wparam == TIMER_ID_DEBOUNCE:
+        user32.KillTimer(hwnd, TIMER_ID_DEBOUNCE)
         unlock_all_keyboards()
         return 0
+
     return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
 
 _instance_mutex = None
