@@ -328,7 +328,14 @@ M_KEYS = {
     0x7D: ("M2", "F14"),
     0x7E: ("M3", "F15"),
     0x7F: ("M4", "F16"),
-    0x80: ("M5", "F17")
+    0x80: ("M5", "F17"),
+    0x81: ("M6", "F18"),
+    0x82: ("M7", "F19"),
+    0x83: ("M8", "F20"),
+    0x84: ("Keypad", "F21"),
+    0x85: ("Keypad", "F22"),
+    0x86: ("Keypad", "F23"),
+    0x87: ("Keypad", "F24"),
 }
 
 def ensure_console():
@@ -403,7 +410,7 @@ def run_interactive_test():
         print(f"  - [{status_str}] {name} (PID: 0x{pid:04X})")
 
     print("\nLive key listener is active.")
-    print("Press M1 to M5 or any standard keys.")
+    print("Press M1 to M8, Keypad keys, or any standard keys.")
     print("To exit, press ESCAPE in this console window.\n")
 
     def hook_callback(nCode, wParam, lParam):
