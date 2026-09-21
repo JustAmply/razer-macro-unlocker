@@ -403,18 +403,11 @@ def cli_install():
         launch_cmd = [sys.executable]
     else:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        vbs_path = os.path.join(script_dir, "razer_unlocker_launcher.vbs")
-        if os.path.exists(vbs_path):
-            target_path = "wscript.exe"
-            arguments = f'"{vbs_path}"'
-            work_dir = script_dir
-            launch_cmd = ["wscript.exe", vbs_path]
-        else:
-            python_exe = sys.executable.replace("python.exe", "pythonw.exe")
-            target_path = python_exe if os.path.exists(python_exe) else sys.executable
-            arguments = f'"{os.path.abspath(__file__)}"'
-            work_dir = script_dir
-            launch_cmd = [target_path, os.path.abspath(__file__)]
+        python_exe = sys.executable.replace("python.exe", "pythonw.exe")
+        target_path = python_exe if os.path.exists(python_exe) else sys.executable
+        arguments = f'"{os.path.abspath(__file__)}"'
+        work_dir = script_dir
+        launch_cmd = [target_path, os.path.abspath(__file__)]
 
     print("Configuring autostart shortcut:")
     print(f"  Target:   {target_path} {arguments}".strip())
