@@ -1,12 +1,15 @@
 """
-Razer BlackWidow Chroma V2 - Silent Hardware Unlocker
-Enables hardware legacy mode (M1-M5 emit native F13-F17 keystrokes).
+Universal Razer Macro Key Unlocker - Silent Background Service
+Unlocks dedicated macro keys (M1-M5, M1-M8, Keypad matrices) across all supported
+Razer keyboards and keypads as native F13-F17 / extended hardware keystrokes.
+
 100% Anti-Cheat compliant: Uses standard Windows drivers (hidusb.sys).
-No hooks, no custom drivers, 0% CPU usage.
+No kernel drivers, no hooks, 0% CPU usage.
 """
 
 import ctypes
 from ctypes import wintypes
+import re
 import time
 import sys
 
@@ -88,13 +91,42 @@ user32.TranslateMessage.argtypes = [ctypes.c_void_p]
 user32.DispatchMessageW.restype = LRESULT
 user32.DispatchMessageW.argtypes = [ctypes.c_void_p]
 
+# Razer Device Registry with known PIDs and protocol parameters
+RAZER_DEVICES = {
+    # Legacy Generation Keyboards with M1-M5
+    0x010D: {"name": "Razer BlackWidow Ultimate 2012", "tx_id": 0x00, "mode": 0x02},
+    0x010E: {"name": "Razer BlackWidow Stealth 2012", "tx_id": 0x00, "mode": 0x02},
+    0x010F: {"name": "Razer Anansi", "tx_id": 0x00, "mode": 0x02},
+    0x011A: {"name": "Razer BlackWidow Ultimate 2013", "tx_id": 0x00, "mode": 0x02},
+    0x011B: {"name": "Razer BlackWidow Stealth 2013/2014", "tx_id": 0x00, "mode": 0x02},
+    0x0203: {"name": "Razer BlackWidow Chroma", "tx_id": 0x00, "mode": 0x02},
+    0x0211: {"name": "Razer BlackWidow Overwatch", "tx_id": 0x00, "mode": 0x02},
+    0x0214: {"name": "Razer BlackWidow Ultimate 2016", "tx_id": 0x00, "mode": 0x02},
+    0x0221: {"name": "Razer BlackWidow Chroma V2", "tx_id": 0x00, "mode": 0x02},
+
+    # Modern V4 Generation Keyboards with M1-M5 / M1-M8
+    0x0287: {"name": "Razer BlackWidow V4", "tx_id": 0x1F, "mode": 0x02},
+    0x028C: {"name": "Razer BlackWidow V4 (Alt)", "tx_id": 0x1F, "mode": 0x02},
+    0x028D: {"name": "Razer BlackWidow V4 Pro", "tx_id": 0x1F, "mode": 0x02},
+    0x029F: {"name": "Razer BlackWidow V4 75%", "tx_id": 0x1F, "mode": 0x02},
+    0x02B3: {"name": "Razer BlackWidow V4 Pro 75%", "tx_id": 0x1F, "mode": 0x02},
+
+    # Keypads with Macro Matrices
+    0x0111: {"name": "Razer Nostromo", "tx_id": 0x00, "mode": 0x02},
+    0x0113: {"name": "Razer Orbweaver", "tx_id": 0x00, "mode": 0x02},
+    0x0201: {"name": "Razer Tartarus", "tx_id": 0x00, "mode": 0x02},
+    0x0207: {"name": "Razer Orbweaver Chroma", "tx_id": 0x00, "mode": 0x02},
+    0x0208: {"name": "Razer Tartarus Chroma", "tx_id": 0x00, "mode": 0x02},
+    0x022B: {"name": "Razer Tartarus V2", "tx_id": 0x00, "mode": 0x02},
+}
+
 def calc_crc(buf):
     crc = 0
     for b in buf[3:89]:
         crc ^= b
     return crc
 
-def find_razer_ctrl_path():
+def find_all_razer_ctrl_devices():
     guid = GUID()
     hid.HidD_GetHidGuid(ctypes.byref(guid))
     hdev = setupapi.SetupDiGetClassDevsW(ctypes.byref(guid), None, None, 0x12)
@@ -102,7 +134,7 @@ def find_razer_ctrl_path():
     did = DID()
     did.cbSize = ctypes.sizeof(DID)
     index = 0
-    found_path = None
+    devices = []
 
     while setupapi.SetupDiEnumDeviceInterfaces(hdev, None, ctypes.byref(guid), index, ctypes.byref(did)):
         index += 1
@@ -113,7 +145,7 @@ def find_razer_ctrl_path():
         ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD))[0] = cbSize
         if setupapi.SetupDiGetDeviceInterfaceDetailW(hdev, ctypes.byref(did), buf, req.value, None, None):
             path = ctypes.wstring_at(ctypes.addressof(buf) + 4)
-            if 'vid_1532' in path.lower() and 'pid_0221' in path.lower():
+            if 'vid_1532' in path.lower():
                 h = kernel32.CreateFileW(path, 0, 3, None, 3, 0, None)
                 if h != -1 and h != 0 and h != 0xFFFFFFFFFFFFFFFF:
                     preparsed = ctypes.c_void_p()
@@ -123,17 +155,17 @@ def find_razer_ctrl_path():
                         hid.HidD_FreePreparsedData(preparsed)
                         kernel32.CloseHandle(h)
                         if caps.FeatureReportByteLength == 91:
-                            found_path = path
-                            break
-                    kernel32.CloseHandle(h)
+                            m = re.search(r'pid_([0-9a-fA-F]{4})', path, re.IGNORECASE)
+                            pid = int(m.group(1), 16) if m else 0
+                            devices.append((path, pid))
+                    else:
+                        kernel32.CloseHandle(h)
 
     setupapi.SetupDiDestroyDeviceInfoList(hdev)
-    return found_path
+    return devices
 
-def unlock_keyboard():
-    path = find_razer_ctrl_path()
-    if not path:
-        return False
+def unlock_device(path, pid):
+    config = RAZER_DEVICES.get(pid, {"name": f"Unknown Razer Device (PID: 0x{pid:04X})", "tx_id": 0x00, "mode": 0x02})
 
     h = kernel32.CreateFileW(path, 0, 3, None, 3, 0, None)
     if h == -1 or h == 0 or h == 0xFFFFFFFFFFFFFFFF:
@@ -142,22 +174,30 @@ def unlock_keyboard():
     req = bytearray(91)
     req[0] = 0x00 # Report ID
     req[1] = 0x00 # Status
-    req[2] = 0x00 # Transaction ID
+    req[2] = config["tx_id"] # Transaction ID (0x00 for legacy, 0x1F for V4)
     req[3] = 0x00 # Remaining packets MSB
     req[4] = 0x00 # Remaining packets LSB
     req[5] = 0x00 # Protocol type
     req[6] = 0x02 # Data size
     req[7] = 0x00 # Command Class
     req[8] = 0x04 # Command ID: Set Device Mode
-    req[9] = 0x02 # Mode 0x02 = Legacy / Macro Key Mode (M1-M5 -> F13-F17)
+    req[9] = config["mode"] # Mode (0x02 = Legacy / Macro Key Mode)
     req[10] = 0x00 # Param
     req[89] = calc_crc(req)
     req[90] = 0x00 # Reserved
 
     buf = (ctypes.c_byte * 91).from_buffer(req)
-    hid.HidD_SetFeature(h, buf, 91)
+    ok = hid.HidD_SetFeature(h, buf, 91)
     kernel32.CloseHandle(h)
-    return True
+    return ok
+
+def unlock_all_keyboards():
+    devices = find_all_razer_ctrl_devices()
+    unlocked = 0
+    for path, pid in devices:
+        if unlock_device(path, pid):
+            unlocked += 1
+    return unlocked > 0
 
 WM_DEVICECHANGE = 0x0219
 WM_POWERBROADCAST = 0x0218
@@ -176,17 +216,17 @@ class WNDCLASSW(ctypes.Structure):
     ]
 
 def wnd_proc(hwnd, msg, wparam, lparam):
-    # Re-unlock keyboard on device reconnect or standby wake-up
+    # Re-unlock keyboards on device reconnect or standby wake-up
     if msg == WM_DEVICECHANGE or (msg == WM_POWERBROADCAST and wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND)):
         time.sleep(1.0) # Small delay to allow USB enumeration to complete
-        unlock_keyboard()
+        unlock_all_keyboards()
         return 0
     return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
 
 def main():
     # Attempt unlock on startup (retry up to 5 times)
     for _ in range(5):
-        if unlock_keyboard():
+        if unlock_all_keyboards():
             break
         time.sleep(2.0)
 

@@ -1,23 +1,51 @@
-# Razer BlackWidow Chroma V2 – Macro Key Unlocker (M1–M5 to F13–F17)
+# Universal Razer Macro Key Unlocker (M1–M5 to F13–F17)
 
-A lightweight, silent Windows background service that unlocks the dedicated macro keys (M1–M5) on the **Razer BlackWidow Chroma V2** (`VID: 0x1532`, `PID: 0x0221`) as native **F13–F17** hardware keystrokes.
+A lightweight, silent Windows background service that automatically unlocks dedicated macro keys (**M1–M5**, **M1–M8**, and **Keypad matrices**) across **all Razer keyboards and keypads** as native **F13–F17** hardware keystrokes.
 
-**Completely free of Razer Synapse and 100% Anti-Cheat compliant!**
+**100% Anti-Cheat compliant, zero drivers, and completely free of Razer Synapse!**
 
 ---
 
 ## Key Highlights
 
-- **100% Anti-Cheat Safe:** Uses exclusively standard Windows HID drivers (`hidusb.sys`). No kernel drivers, no Interception driver, no DLL injection, and no keyboard hooking in the background service.
-- **Genuine Hardware Signals:** By sending a standard USB HID Feature Report to switch the keyboard into Legacy Mode, the keyboard's onboard controller emits native hardware scancodes for `F13` through `F17`.
-- **0% CPU & Minimal RAM:** The service unlocks the keyboard upon startup and waits passively in the background for USB reconnects and standby wakeups.
-- **Instantly Usable in Games & Apps:** Any game (as well as Discord, OBS, TeamSpeak, etc.) immediately recognizes M1–M5 as independent function keys `F13`–`F17` when binding keys in the settings menu.
+- **100% Anti-Cheat Safe:** Uses exclusively the standard Windows USB HID driver (`hidusb.sys`). No kernel-level drivers, no Interception driver, no DLL injection, and no background keyboard hooks.
+- **Genuine Hardware Signals:** By sending a standard USB HID Feature Report to switch the keyboard into Legacy Mode, the keyboard's internal controller emits native hardware scancodes for `F13` through `F17`.
+- **Universal Multi-Device Support:** Automatically enumerates all connected Razer keyboards and keypads, unlocks each device dynamically, and responds to USB reconnects and standby wakeups.
+- **0% CPU & Minimal RAM:** Unlocks the hardware upon startup/reconnect and remains passive in the background.
+- **Instant Game Integration:** Any game, Discord, OBS, or voice chat tool immediately recognizes M1–M5 directly as independent function keys `F13`–`F17` in keybinding menus.
 
 ---
 
-## Key Mapping
+## Supported Devices Matrix
 
-| Keyboard Key | Virtual-Key Code | Windows Key | Hardware ScanCode |
+| Device Model | USB Product ID (PID) | Macro Key Layout | Native Output |
+| :--- | :--- | :--- | :--- |
+| **Razer BlackWidow Ultimate 2012** | `0x010D` | M1–M5 | `F13`–`F17` |
+| **Razer BlackWidow Stealth 2012** | `0x010E` | M1–M5 | `F13`–`F17` |
+| **Razer Anansi (MMO Keyboard)** | `0x010F` | M1–M5 (+ T1–T5) | `F13`–`F17` |
+| **Razer Nostromo (Keypad)** | `0x0111` | Keys 01–16 | Extended Keys |
+| **Razer Orbweaver (Keypad)** | `0x0113` | Keys 01–20 | Extended Keys |
+| **Razer BlackWidow Ultimate 2013** | `0x011A` | M1–M5 | `F13`–`F17` |
+| **Razer BlackWidow Stealth 2013/14** | `0x011B` | M1–M5 | `F13`–`F17` |
+| **Razer Tartarus (Keypad)** | `0x0201` | Keys 01–15 | Extended Keys |
+| **Razer BlackWidow Chroma** | `0x0203` | M1–M5 | `F13`–`F17` |
+| **Razer Orbweaver Chroma** | `0x0207` | Keys 01–20 | Extended Keys |
+| **Razer Tartarus Chroma** | `0x0208` | Keys 01–15 | Extended Keys |
+| **Razer BlackWidow Overwatch** | `0x0211` | M1–M5 | `F13`–`F17` |
+| **Razer BlackWidow Ultimate 2016** | `0x0214` | M1–M5 | `F13`–`F17` |
+| **Razer BlackWidow Chroma V2** | `0x0221` | M1–M5 | `F13`–`F17` |
+| **Razer Tartarus V2** | `0x022B` | Keys 01–19 | Extended Keys |
+| **Razer BlackWidow V4** | `0x0287` / `0x028C` | M1–M5 | `F13`–`F17` |
+| **Razer BlackWidow V4 Pro** | `0x028D` | M1–M5 + M6–M8 | `F13`–`F17` + Extended |
+| **Razer BlackWidow V4 75%** | `0x029F` | Macro functions | Extended Keys |
+| **Razer BlackWidow V4 Pro 75%** | `0x02B3` | Macro functions | Extended Keys |
+| **Any Unlisted Razer Device** | `VID: 0x1532` | Automatic Detection | Safe Mode 0x02 Fallback |
+
+---
+
+## Key Mapping (M1–M5)
+
+| Physical Key | Virtual-Key Code | Windows Virtual Key | Hardware ScanCode |
 | :--- | :--- | :--- | :--- |
 | **M1** | `0x7C` (124) | **`F13`** | `0x64` |
 | **M2** | `0x7D` (125) | **`F14`** | `0x65` |
@@ -30,16 +58,16 @@ A lightweight, silent Windows background service that unlocks the dedicated macr
 ## Installation
 
 1. Run **`install_autostart.bat`**.
-2. The script creates a shortcut in your Windows Startup directory (`shell:startup`) and starts the service silently in the background.
+2. The script creates an autostart shortcut in your Windows Startup directory (`shell:startup`) and starts the service silently in the background.
 
 ---
 
 ## Uninstallation
 
-- Run **`uninstall_autostart.bat`** to remove the startup shortcut and terminate any running background instances.
+- Run **`uninstall_autostart.bat`** to remove the autostart shortcut and terminate running service processes.
 
 ---
 
 ## Live Diagnostic & Testing
 
-- Run **`run_test.bat`** to open an interactive console window that displays all incoming key events in real time.
+- Run **`run_test.bat`** to open an interactive console window that detects all connected Razer devices, unlocks them, and displays incoming keystrokes in real time.
