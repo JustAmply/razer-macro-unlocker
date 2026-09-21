@@ -219,30 +219,44 @@ def find_all_razer_ctrl_devices():
     setupapi.SetupDiDestroyDeviceInfoList(hdev)
     return devices
 
-def unlock_device(path, pid):
-    config = RAZER_DEVICES.get(pid, {"name": f"Unknown Razer Device (PID: 0x{pid:04X})", "tx_id": 0x00, "mode": 0x02})
-
-    h = kernel32.CreateFileW(path, 0, 3, None, 3, 0, None)
-    if h == -1 or h == 0 or h == 0xFFFFFFFFFFFFFFFF:
-        return False
-
+def send_mode_report(h, tx_id, mode):
     req = bytearray(91)
     req[0] = 0x00 # Report ID
     req[1] = 0x00 # Status
-    req[2] = config["tx_id"] # Transaction ID (0x00 for legacy, 0x1F for V4)
+    req[2] = tx_id # Transaction ID (0x00 for legacy, 0x1F for V4)
     req[3] = 0x00 # Remaining packets MSB
     req[4] = 0x00 # Remaining packets LSB
     req[5] = 0x00 # Protocol type
     req[6] = 0x02 # Data size
     req[7] = 0x00 # Command Class
     req[8] = 0x04 # Command ID: Set Device Mode
-    req[9] = config["mode"] # Mode (0x02 = Legacy / Macro Key Mode)
+    req[9] = mode # Mode (0x02 = Legacy / Macro Key Mode)
     req[10] = 0x00 # Param
     req[89] = calc_crc(req)
     req[90] = 0x00 # Reserved
 
     buf = (ctypes.c_byte * 91).from_buffer(req)
-    ok = hid.HidD_SetFeature(h, buf, 91)
+    return bool(hid.HidD_SetFeature(h, buf, 91))
+
+def unlock_device(path, pid):
+    if pid in RAZER_DEVICES:
+        primary_tx_id = RAZER_DEVICES[pid]["tx_id"]
+        mode = RAZER_DEVICES[pid]["mode"]
+    else:
+        # Fallback for unlisted Razer devices: V4 series (PID >= 0x0280) uses 0x1F, older use 0x00
+        primary_tx_id = 0x1F if pid >= 0x0280 else 0x00
+        mode = 0x02
+
+    h = kernel32.CreateFileW(path, 0, 3, None, 3, 0, None)
+    if h == -1 or h == 0 or h == 0xFFFFFFFFFFFFFFFF:
+        return False
+
+    ok = send_mode_report(h, primary_tx_id, mode)
+    if not ok:
+        # If first attempt fails, automatically retry with alternative transaction ID (0x1F <-> 0x00)
+        alt_tx_id = 0x00 if primary_tx_id == 0x1F else 0x1F
+        ok = send_mode_report(h, alt_tx_id, mode)
+
     kernel32.CloseHandle(h)
     return ok
 
