@@ -9,7 +9,9 @@ No kernel drivers, no hooks, 0% CPU usage.
 
 import ctypes
 from ctypes import wintypes
+import os
 import re
+import subprocess
 import time
 import sys
 
@@ -35,6 +37,10 @@ kernel32.CreateMutexW.restype = wintypes.HANDLE
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
 kernel32.GetLastError.restype = wintypes.DWORD
 kernel32.GetLastError.argtypes = []
+kernel32.AttachConsole.restype = wintypes.BOOL
+kernel32.AttachConsole.argtypes = [wintypes.DWORD]
+kernel32.AllocConsole.restype = wintypes.BOOL
+kernel32.AllocConsole.argtypes = []
 
 hid.HidD_SetFeature.restype = wintypes.BOOL
 hid.HidD_SetFeature.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.ULONG]
@@ -103,6 +109,14 @@ user32.SetTimer.restype = UINT_PTR
 user32.SetTimer.argtypes = [wintypes.HWND, UINT_PTR, wintypes.UINT, ctypes.c_void_p]
 user32.KillTimer.restype = wintypes.BOOL
 user32.KillTimer.argtypes = [wintypes.HWND, UINT_PTR]
+user32.SetWindowsHookExW.restype = wintypes.HHOOK
+user32.SetWindowsHookExW.argtypes = [ctypes.c_int, ctypes.c_void_p, wintypes.HINSTANCE, wintypes.DWORD]
+user32.UnhookWindowsHookEx.restype = wintypes.BOOL
+user32.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+user32.CallNextHookEx.restype = LRESULT
+user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, WPARAM, LPARAM]
+user32.PostQuitMessage.restype = None
+user32.PostQuitMessage.argtypes = [ctypes.c_int]
 
 # Razer Device Registry with known PIDs and protocol parameters
 RAZER_DEVICES = {
@@ -250,14 +264,276 @@ def wnd_proc(hwnd, msg, wparam, lparam):
         unlock_all_keyboards()
         return 0
 
+    if msg in (0x0010, 0x0002): # WM_CLOSE (0x0010), WM_DESTROY (0x0002)
+        user32.PostQuitMessage(0)
+        return 0
+
     return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+class KBDLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [
+        ('vkCode', wintypes.DWORD),
+        ('scanCode', wintypes.DWORD),
+        ('flags', wintypes.DWORD),
+        ('time', wintypes.DWORD),
+        ('dwExtraInfo', ctypes.c_ulonglong)
+    ]
+
+HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, WPARAM, LPARAM)
+
+M_KEYS = {
+    0x7C: ("M1", "F13"),
+    0x7D: ("M2", "F14"),
+    0x7E: ("M3", "F15"),
+    0x7F: ("M4", "F16"),
+    0x80: ("M5", "F17")
+}
+
+def ensure_console():
+    # If stdout is already an active, writable stream, don't redirect
+    if sys.stdout is not None:
+        try:
+            sys.stdout.flush()
+            return
+        except Exception:
+            pass
+
+    ATTACH_PARENT_PROCESS = 0xFFFFFFFF
+    attached = kernel32.AttachConsole(ATTACH_PARENT_PROCESS)
+    if not attached:
+        kernel32.AllocConsole()
+
+    try:
+        sys.stdout = open('CONOUT$', 'w', encoding='utf-8', buffering=1)
+        sys.stderr = open('CONOUT$', 'w', encoding='utf-8', buffering=1)
+    except Exception:
+        pass
+
+def run_interactive_test():
+    ensure_console()
+    print("=" * 60)
+    print("       Universal Razer Macro Key Unlocker - Test        ")
+    print("=" * 60)
+
+    devices = find_all_razer_ctrl_devices()
+    if not devices:
+        print("ERROR: No Razer devices found with 91-byte control endpoints.")
+        input("\nPress Enter to exit...")
+        return
+
+    print(f"Found {len(devices)} Razer control device(s):")
+    for path, pid in devices:
+        name = RAZER_DEVICES.get(pid, {}).get("name", f"Unknown Razer Device (PID: 0x{pid:04X})")
+        ok = unlock_device(path, pid)
+        status_str = "SUCCESS" if ok else "FAILED"
+        print(f"  - [{status_str}] {name} (PID: 0x{pid:04X})")
+
+    print("\nLive key listener is active.")
+    print("Press M1 to M5 or any standard keys.")
+    print("To exit, press ESCAPE in this console window.\n")
+
+    def hook_callback(nCode, wParam, lParam):
+        if nCode >= 0:
+            kb = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+            state = "DOWN" if wParam in (0x0100, 0x0104) else "UP"
+
+            if kb.vkCode in M_KEYS:
+                m_label, f_key = M_KEYS[kb.vkCode]
+                print(f"  >>> [MACRO KEY] {m_label} -> Windows detects {f_key} ({state}) | VK=0x{kb.vkCode:02X}, ScanCode=0x{kb.scanCode:02X}")
+            else:
+                print(f"  Key: {state} | VK=0x{kb.vkCode:02X} (Dec: {kb.vkCode}), ScanCode=0x{kb.scanCode:02X}")
+
+            if kb.vkCode == 0x1B: # Escape
+                print("\nEscape pressed - exiting...")
+                user32.PostQuitMessage(0)
+
+        return user32.CallNextHookEx(None, nCode, wParam, lParam)
+
+    cb = HOOKPROC(hook_callback)
+    h_hook = user32.SetWindowsHookExW(13, cb, None, 0)
+    if not h_hook:
+        print("Hook setup error:", kernel32.GetLastError())
+        input("\nPress Enter to exit...")
+        return
+
+    msg = wintypes.MSG()
+    while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+        user32.TranslateMessage(ctypes.byref(msg))
+        user32.DispatchMessageW(ctypes.byref(msg))
+
+    user32.UnhookWindowsHookEx(h_hook)
+    print("Test completed successfully.")
+
+def get_startup_shortcut_path():
+    appdata = os.environ.get('APPDATA', '')
+    if not appdata:
+        appdata = os.path.expandvars(r'%APPDATA%')
+    return os.path.join(appdata, r'Microsoft\Windows\Start Menu\Programs\Startup', 'RazerUnlocker.lnk')
+
+def create_shortcut(target_path, shortcut_path, working_dir="", arguments=""):
+    target_esc = target_path.replace("'", "''")
+    shortcut_esc = shortcut_path.replace("'", "''")
+    workdir_esc = working_dir.replace("'", "''")
+    args_esc = arguments.replace("'", "''")
+    ps_cmd = (
+        f"$ws = New-Object -ComObject WScript.Shell; "
+        f"$s = $ws.CreateShortcut('{shortcut_esc}'); "
+        f"$s.TargetPath = '{target_esc}'; "
+        f"$s.WorkingDirectory = '{workdir_esc}'; "
+        f"$s.Arguments = '{args_esc}'; "
+        f"$s.Save()"
+    )
+    res = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd], capture_output=True, text=True)
+    return res.returncode == 0 and os.path.exists(shortcut_path)
+
+def cli_install():
+    ensure_console()
+    print("=" * 60)
+    print("  Universal Razer Macro Key Unlocker - Setup Autostart")
+    print("=" * 60)
+
+    shortcut_path = get_startup_shortcut_path()
+    os.makedirs(os.path.dirname(shortcut_path), exist_ok=True)
+
+    is_frozen = getattr(sys, 'frozen', False)
+    if is_frozen:
+        target_path = sys.executable
+        work_dir = os.path.dirname(sys.executable)
+        arguments = ""
+        launch_cmd = [sys.executable]
+    else:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        vbs_path = os.path.join(script_dir, "razer_unlocker_launcher.vbs")
+        if os.path.exists(vbs_path):
+            target_path = "wscript.exe"
+            arguments = f'"{vbs_path}"'
+            work_dir = script_dir
+            launch_cmd = ["wscript.exe", vbs_path]
+        else:
+            python_exe = sys.executable.replace("python.exe", "pythonw.exe")
+            target_path = python_exe if os.path.exists(python_exe) else sys.executable
+            arguments = f'"{os.path.abspath(__file__)}"'
+            work_dir = script_dir
+            launch_cmd = [target_path, os.path.abspath(__file__)]
+
+    print("Configuring autostart shortcut:")
+    print(f"  Target:   {target_path} {arguments}".strip())
+    print(f"  Location: {shortcut_path}")
+
+    ok = create_shortcut(target_path, shortcut_path, work_dir, arguments)
+    if ok:
+        print("\n[OK] Autostart shortcut successfully created!")
+        print("Starting background service...")
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        subprocess.Popen(launch_cmd, cwd=work_dir, creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+        print("[OK] Razer Macro Unlocker is now running in the background.")
+    else:
+        print("\n[ERROR] Failed to create autostart shortcut.")
+
+def cli_uninstall():
+    ensure_console()
+    print("=" * 60)
+    print("  Universal Razer Macro Key Unlocker - Uninstall")
+    print("=" * 60)
+
+    # 1. Terminate running background service
+    print("Stopping running background service instances...")
+    hwnd = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
+    if hwnd:
+        user32.PostMessageW(hwnd, 0x0010, 0, 0) # WM_CLOSE
+        print("  - Sent stop signal to RazerUnlocker service window.")
+
+    # Also kill by image name to ensure complete cleanup
+    subprocess.run(["taskkill", "/f", "/im", "RazerMacroUnlocker.exe"], capture_output=True)
+
+    # 2. Remove startup shortcut
+    shortcut_path = get_startup_shortcut_path()
+    if os.path.exists(shortcut_path):
+        try:
+            os.remove(shortcut_path)
+            print(f"[OK] Removed autostart shortcut:\n  {shortcut_path}")
+        except Exception as e:
+            print(f"[WARNING] Could not remove shortcut: {e}")
+    else:
+        print(f"[INFO] Autostart shortcut not present:\n  {shortcut_path}")
+
+    print("\n[OK] Razer Macro Unlocker uninstalled and stopped.")
+
+def cli_status():
+    ensure_console()
+    print("=" * 60)
+    print("  Universal Razer Macro Key Unlocker - Device Status")
+    print("=" * 60)
+    devices = find_all_razer_ctrl_devices()
+    if not devices:
+        print("No Razer devices with 91-byte control endpoints found.")
+        return
+
+    print(f"Found {len(devices)} Razer control device(s):")
+    for path, pid in devices:
+        name = RAZER_DEVICES.get(pid, {}).get("name", f"Unknown Razer Device (PID: 0x{pid:04X})")
+        print(f"  - {name} (PID: 0x{pid:04X})")
+        print(f"    Path: {path}")
+
+def cli_rescan():
+    ensure_console()
+    print("Sending rescan signal to running background service...")
+    hwnd = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
+    if hwnd:
+        user32.PostMessageW(hwnd, WM_APP_RESCAN, 0, 0)
+        print("[OK] Rescan signal sent to running Razer Macro Unlocker.")
+    else:
+        print("[INFO] No running background service found. Performing direct unlock...")
+        if unlock_all_keyboards():
+            print("[OK] All connected Razer devices unlocked.")
+        else:
+            print("[WARNING] No devices could be unlocked.")
+
+def cli_help():
+    ensure_console()
+    print("=" * 60)
+    print("  Universal Razer Macro Key Unlocker (M1-M5 to F13-F17)")
+    print("=" * 60)
+    print("\nUsage:")
+    print("  RazerMacroUnlocker.exe [options]\n")
+    print("Options:")
+    print("  --install, -i      Configure autostart with Windows and start service")
+    print("  --uninstall, -u    Remove autostart shortcut and stop background service")
+    print("  --test, -t         Launch interactive diagnostic key listener")
+    print("  --status, -s       Display detected Razer devices and their status")
+    print("  --rescan, -r       Trigger an immediate re-scan on the running service")
+    print("  --help, -h         Show this help message")
+    print("\nWithout arguments, runs silently in the background as a Windows service.")
 
 _instance_mutex = None
 
 def main():
     global _instance_mutex
 
-    # Enforce single instance via named Windows Mutex
+    # Handle CLI arguments
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1].lower()
+        if cmd in ('--install', '-i', 'install'):
+            cli_install()
+            sys.exit(0)
+        elif cmd in ('--uninstall', '-u', 'uninstall'):
+            cli_uninstall()
+            sys.exit(0)
+        elif cmd in ('--test', '-t', 'test'):
+            run_interactive_test()
+            sys.exit(0)
+        elif cmd in ('--status', '-s', 'status'):
+            cli_status()
+            sys.exit(0)
+        elif cmd in ('--rescan', '-r', 'rescan'):
+            cli_rescan()
+            sys.exit(0)
+        elif cmd in ('--help', '-h', '/?', 'help'):
+            cli_help()
+            sys.exit(0)
+
+    # Enforce single instance via named Windows Mutex for background service
     _instance_mutex = kernel32.CreateMutexW(None, True, SINGLE_INSTANCE_MUTEX)
     if not _instance_mutex or kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
         # If an instance is already running, signal it to rescan devices and exit
