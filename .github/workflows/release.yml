@@ -57,6 +57,7 @@ jobs:
           Copy-Item "dist\RazerMacroUnlocker.exe" -Destination "release_bundle\"
           Copy-Item "install_autostart.bat" -Destination "release_bundle\"
           Copy-Item "uninstall_autostart.bat" -Destination "release_bundle\"
+          Copy-Item "run_test.bat" -Destination "release_bundle\"
           Copy-Item "README.md" -Destination "release_bundle\"
           
           Compress-Archive -Path "release_bundle\*" -DestinationPath $zipName -Force
