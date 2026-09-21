@@ -1,3 +1,8 @@
+"""
+Interactive diagnostic and test utility for Razer BlackWidow Chroma V2.
+Captures key events in real time and highlights M1-M5 macro keys.
+"""
+
 import ctypes
 from ctypes import wintypes
 import time
@@ -49,7 +54,7 @@ def set_legacy_mode():
     path = r'\\?\hid#vid_1532&pid_0221&mi_02#a&b377700&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}'
     h = kernel32.CreateFileW(path, 0, 3, None, 3, 0, None)
     if h == -1 or h == 0 or h == 0xFFFFFFFFFFFFFFFF:
-        print("FEHLER: Konnte Steuer-Schnittstelle nicht öffnen.")
+        print("ERROR: Could not open Razer control endpoint handle.")
         return False
 
     req = bytearray(91)
@@ -76,7 +81,7 @@ def set_legacy_mode():
     kernel32.CloseHandle(h)
 
     status = resp[1]
-    print(f"Legacy-Modus gesendet. Ergebnis: {'OK (0x02)' if status == 0x02 else f'Status 0x{status:02X}'}")
+    print(f"Legacy Mode command sent. Response: {'OK (0x02)' if status == 0x02 else f'Status 0x{status:02X}'}")
     return ok and (status == 0x02)
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -104,13 +109,13 @@ def main():
     print("========================================================")
     
     if not set_legacy_mode():
-        input("\nFehler beim Freischalten. Drücke Enter...")
+        input("\nFailed to unlock device. Press Enter to exit...")
         return
 
-    print("\nTastatur ist im Legacy-Modus (M1-M5 senden F13-F17)!")
-    print("Der Live-Listener ist aktiv.")
-    print("Bitte drücke die Tasten M1 bis M5 oder normale Tasten.")
-    print("Zum Beenden drücke ESCAPE im Konsolenfenster.\n")
+    print("\nKeyboard unlocked in Legacy Mode (M1-M5 emit F13-F17)!")
+    print("Live listener is active.")
+    print("Press M1 to M5 or any standard keys.")
+    print("To exit, press ESCAPE in this console window.\n")
 
     def hook_callback(nCode, wParam, lParam):
         if nCode >= 0:
@@ -119,12 +124,12 @@ def main():
 
             if kb.vkCode in M_KEYS:
                 m_label, f_key = M_KEYS[kb.vkCode]
-                print(f"  >>> [MAKROTASTE] {m_label} -> Windows erkennt {f_key} ({state}) | VK=0x{kb.vkCode:02X}, ScanCode=0x{kb.scanCode:02X}")
+                print(f"  >>> [MACRO KEY] {m_label} -> Windows detects {f_key} ({state}) | VK=0x{kb.vkCode:02X}, ScanCode=0x{kb.scanCode:02X}")
             else:
-                print(f"  Taste: {state} | VK=0x{kb.vkCode:02X} (Dec: {kb.vkCode}), ScanCode=0x{kb.scanCode:02X}")
+                print(f"  Key: {state} | VK=0x{kb.vkCode:02X} (Dec: {kb.vkCode}), ScanCode=0x{kb.scanCode:02X}")
 
             if kb.vkCode == 0x1B: # Escape
-                print("\nEscape gedrückt - beende...")
+                print("\nEscape pressed - exiting...")
                 user32.PostQuitMessage(0)
 
         return user32.CallNextHookEx(None, nCode, wParam, lParam)
@@ -132,8 +137,8 @@ def main():
     cb = HOOKPROC(hook_callback)
     h_hook = user32.SetWindowsHookExW(13, cb, None, 0)
     if not h_hook:
-        print("Fehler beim Hook-Setup:", kernel32.GetLastError())
-        input("\nDrücke Enter...")
+        print("Hook setup error:", kernel32.GetLastError())
+        input("\nPress Enter to exit...")
         return
 
     msg = wintypes.MSG()
@@ -142,7 +147,7 @@ def main():
         user32.DispatchMessageW(ctypes.byref(msg))
 
     user32.UnhookWindowsHookEx(h_hook)
-    print("Test erfolgreich beendet.")
+    print("Test completed successfully.")
 
 if __name__ == '__main__':
     main()

@@ -1,8 +1,8 @@
 """
 Razer BlackWidow Chroma V2 - Silent Hardware Unlocker
-Aktiviert den hardwareseitigen Legacy-Modus (M1-M5 senden nativ F13-F17).
-100% Anti-Cheat-sicher: Verwendet nur Windows-Standardtreiber (hidusb.sys).
-Kein Hooking, keine Treiber, 0% CPU-Last.
+Enables hardware legacy mode (M1-M5 emit native F13-F17 keystrokes).
+100% Anti-Cheat compliant: Uses standard Windows drivers (hidusb.sys).
+No hooks, no custom drivers, 0% CPU usage.
 """
 
 import ctypes
@@ -176,18 +176,21 @@ class WNDCLASSW(ctypes.Structure):
     ]
 
 def wnd_proc(hwnd, msg, wparam, lparam):
+    # Re-unlock keyboard on device reconnect or standby wake-up
     if msg == WM_DEVICECHANGE or (msg == WM_POWERBROADCAST and wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND)):
-        time.sleep(1.0)
+        time.sleep(1.0) # Small delay to allow USB enumeration to complete
         unlock_keyboard()
         return 0
     return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
 
 def main():
+    # Attempt unlock on startup (retry up to 5 times)
     for _ in range(5):
         if unlock_keyboard():
             break
         time.sleep(2.0)
 
+    # Register hidden message-only window to receive USB and Power events
     wnd_proc_cb = WNDPROC(wnd_proc)
     wnd_class = WNDCLASSW()
     wnd_class.lpfnWndProc = wnd_proc_cb
@@ -197,6 +200,7 @@ def main():
 
     hwnd = user32.CreateWindowExW(0, "RazerUnlockerServiceClass", "RazerUnlocker", 0, 0, 0, 0, 0, None, None, wnd_class.hInstance, None)
 
+    # Passive message loop (0% CPU usage)
     msg = wintypes.MSG()
     while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
         user32.TranslateMessage(ctypes.byref(msg))
