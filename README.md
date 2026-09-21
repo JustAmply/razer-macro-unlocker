@@ -73,7 +73,7 @@ For standard users and gamers, **no Python installation is required**:
 2. **Instant Run:** Simply launch **`RazerMacroUnlocker.exe`**. It will unlock all connected Razer keyboards and keypads immediately and run silently in the background with 0% CPU.
 3. **Autostart with Windows:**
    - Double-click **`install_autostart.bat`** (or run `RazerMacroUnlocker.exe --install` in terminal).
-   - It automatically creates a shortcut in your Windows Startup folder (`shell:startup`) and launches the service.
+   - It automatically registers the application in the Windows Registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) for instant startup and launches the service.
 
 ---
 
@@ -85,7 +85,7 @@ For standard users and gamers, **no Python installation is required**:
 # Configure autostart with Windows and launch background service
 .\RazerMacroUnlocker.exe --install
 
-# Remove autostart shortcut and terminate running background services
+# Remove autostart entry and terminate running background services
 .\RazerMacroUnlocker.exe --uninstall
 
 # Run interactive diagnostic test and live keystroke monitor
@@ -119,7 +119,7 @@ If you prefer to run from source or build the executable yourself:
 
 ## Uninstallation
 
-- Run **`uninstall_autostart.bat`** (or `RazerMacroUnlocker.exe --uninstall`) to remove the autostart shortcut and terminate all running background instances.
+- Run **`uninstall_autostart.bat`** (or `RazerMacroUnlocker.exe --uninstall`) to remove the Windows Registry autostart entry and terminate all running background instances.
 
 ---
 

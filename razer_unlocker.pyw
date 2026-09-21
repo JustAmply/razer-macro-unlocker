@@ -12,8 +12,9 @@ from ctypes import wintypes
 import os
 import re
 import subprocess
-import time
 import sys
+import time
+import winreg
 
 kernel32 = ctypes.WinDLL('kernel32.dll')
 user32 = ctypes.WinDLL('user32.dll')
@@ -445,27 +446,42 @@ def run_interactive_test():
     user32.UnhookWindowsHookEx(h_hook)
     print("Test completed successfully.")
 
+REG_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+REG_APP_NAME = "RazerUnlocker"
+
 def get_startup_shortcut_path():
     appdata = os.environ.get('APPDATA', '')
     if not appdata:
         appdata = os.path.expandvars(r'%APPDATA%')
     return os.path.join(appdata, r'Microsoft\Windows\Start Menu\Programs\Startup', 'RazerUnlocker.lnk')
 
-def create_shortcut(target_path, shortcut_path, working_dir="", arguments=""):
-    target_esc = target_path.replace("'", "''")
-    shortcut_esc = shortcut_path.replace("'", "''")
-    workdir_esc = working_dir.replace("'", "''")
-    args_esc = arguments.replace("'", "''")
-    ps_cmd = (
-        f"$ws = New-Object -ComObject WScript.Shell; "
-        f"$s = $ws.CreateShortcut('{shortcut_esc}'); "
-        f"$s.TargetPath = '{target_esc}'; "
-        f"$s.WorkingDirectory = '{workdir_esc}'; "
-        f"$s.Arguments = '{args_esc}'; "
-        f"$s.Save()"
-    )
-    res = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd], capture_output=True, text=True)
-    return res.returncode == 0 and os.path.exists(shortcut_path)
+def set_autostart_registry(command):
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, REG_APP_NAME, 0, winreg.REG_SZ, command)
+        return True
+    except OSError as e:
+        print(f"[ERROR] Failed to set registry autostart: {e}")
+        return False
+
+def remove_autostart_registry():
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+            winreg.DeleteValue(key, REG_APP_NAME)
+        return True
+    except FileNotFoundError:
+        return False
+    except OSError as e:
+        print(f"[WARNING] Failed to remove registry autostart: {e}")
+        return False
+
+def get_autostart_registry():
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_KEY, 0, winreg.KEY_QUERY_VALUE) as key:
+            val, _ = winreg.QueryValueEx(key, REG_APP_NAME)
+            return val
+    except (FileNotFoundError, OSError):
+        return None
 
 def cli_install():
     ensure_console()
@@ -473,34 +489,43 @@ def cli_install():
     print("  Universal Razer Macro Key Unlocker - Setup Autostart")
     print("=" * 60)
 
-    shortcut_path = get_startup_shortcut_path()
-    os.makedirs(os.path.dirname(shortcut_path), exist_ok=True)
-
     is_frozen = getattr(sys, 'frozen', False)
     if is_frozen:
         target_path = sys.executable
         work_dir = os.path.dirname(sys.executable)
-        arguments = ""
         launch_cmd = [sys.executable]
+        run_command = f'"{target_path}"'
     else:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         python_exe = sys.executable.replace("python.exe", "pythonw.exe")
         target_path = python_exe if os.path.exists(python_exe) else sys.executable
-        arguments = f'"{os.path.abspath(__file__)}"'
+        script_path = os.path.abspath(__file__)
         work_dir = script_dir
-        launch_cmd = [target_path, os.path.abspath(__file__)]
+        launch_cmd = [target_path, script_path]
+        run_command = f'"{target_path}" "{script_path}"'
 
-    print("Configuring autostart shortcut:")
-    print(f"  Target:   {target_path} {arguments}".strip())
-    print(f"  Location: {shortcut_path}")
+    print("Configuring Windows Registry autostart:")
+    print(f"  Key:     HKCU\\{REG_RUN_KEY}")
+    print(f"  Name:    {REG_APP_NAME}")
+    print(f"  Command: {run_command}")
 
-    ok = create_shortcut(target_path, shortcut_path, work_dir, arguments)
+    ok = set_autostart_registry(run_command)
     if ok:
-        print("\n[OK] Autostart shortcut successfully created!")
+        print("\n[OK] Autostart successfully registered in Windows Registry!")
+
+        # Clean up legacy .lnk shortcut if present from earlier versions
+        legacy_shortcut = get_startup_shortcut_path()
+        if os.path.exists(legacy_shortcut):
+            try:
+                os.remove(legacy_shortcut)
+                print(f"[INFO] Cleaned up legacy startup shortcut:\n  {legacy_shortcut}")
+            except Exception:
+                pass
+
         print("Starting background service...")
         try:
-            if arguments:
-                os.startfile(target_path, arguments=arguments, cwd=work_dir)
+            if not is_frozen:
+                os.startfile(target_path, arguments=f'"{script_path}"', cwd=work_dir)
             else:
                 os.startfile(target_path, cwd=work_dir)
         except Exception:
@@ -517,7 +542,7 @@ def cli_install():
             )
         print("[OK] Razer Macro Unlocker is now running in the background.")
     else:
-        print("\n[ERROR] Failed to create autostart shortcut.")
+        print("\n[ERROR] Failed to configure autostart in Windows Registry.")
 
 def cli_uninstall():
     ensure_console()
@@ -534,16 +559,21 @@ def cli_uninstall():
     else:
         print("  [INFO] No running RazerUnlocker background service found.")
 
-    # 2. Remove startup shortcut
-    shortcut_path = get_startup_shortcut_path()
-    if os.path.exists(shortcut_path):
-        try:
-            os.remove(shortcut_path)
-            print(f"[OK] Removed autostart shortcut:\n  {shortcut_path}")
-        except Exception as e:
-            print(f"[WARNING] Could not remove shortcut: {e}")
+    # 2. Remove registry autostart
+    removed = remove_autostart_registry()
+    if removed:
+        print(f"[OK] Removed Windows Registry autostart entry (HKCU\\{REG_RUN_KEY}\\{REG_APP_NAME}).")
     else:
-        print(f"[INFO] Autostart shortcut not present:\n  {shortcut_path}")
+        print(f"[INFO] Registry autostart entry not present.")
+
+    # 3. Clean up legacy startup shortcut if present
+    legacy_shortcut = get_startup_shortcut_path()
+    if os.path.exists(legacy_shortcut):
+        try:
+            os.remove(legacy_shortcut)
+            print(f"[OK] Removed legacy autostart shortcut:\n  {legacy_shortcut}")
+        except Exception as e:
+            print(f"[WARNING] Could not remove legacy shortcut: {e}")
 
     print("\n[OK] Razer Macro Unlocker uninstalled and stopped.")
 
@@ -586,7 +616,7 @@ def cli_help():
     print("  RazerMacroUnlocker.exe [options]\n")
     print("Options:")
     print("  --install, -i      Configure autostart with Windows and start service")
-    print("  --uninstall, -u    Remove autostart shortcut and stop background service")
+    print("  --uninstall, -u    Remove autostart and stop background service")
     print("  --test, -t         Launch interactive diagnostic key listener")
     print("  --status, -s       Display detected Razer devices and their status")
     print("  --rescan, -r       Trigger an immediate re-scan on the running service")
