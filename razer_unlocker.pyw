@@ -21,10 +21,11 @@ kernel32 = ctypes.WinDLL('kernel32.dll')
 user32 = ctypes.WinDLL('user32.dll')
 hid = ctypes.WinDLL('hid.dll')
 setupapi = ctypes.WinDLL('setupapi.dll')
+wtsapi32 = ctypes.WinDLL('wtsapi32.dll')
 
 LRESULT = ctypes.c_longlong
 WPARAM = ctypes.c_ulonglong
-LPARAM = ctypes.c_size_t
+LPARAM = ctypes.c_longlong
 
 kernel32.CreateFileW.restype = wintypes.HANDLE
 kernel32.CreateFileW.argtypes = [
@@ -142,6 +143,19 @@ user32.CallNextHookEx.restype = LRESULT
 user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, WPARAM, LPARAM]
 user32.PostQuitMessage.restype = None
 user32.PostQuitMessage.argtypes = [ctypes.c_int]
+user32.RegisterDeviceNotificationW.restype = wintypes.HANDLE
+user32.RegisterDeviceNotificationW.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD]
+user32.UnregisterDeviceNotification.restype = wintypes.BOOL
+user32.UnregisterDeviceNotification.argtypes = [wintypes.HANDLE]
+user32.RegisterPowerSettingNotification.restype = wintypes.HANDLE
+user32.RegisterPowerSettingNotification.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD]
+user32.UnregisterPowerSettingNotification.restype = wintypes.BOOL
+user32.UnregisterPowerSettingNotification.argtypes = [wintypes.HANDLE]
+
+wtsapi32.WTSRegisterSessionNotification.restype = wintypes.BOOL
+wtsapi32.WTSRegisterSessionNotification.argtypes = [wintypes.HWND, wintypes.DWORD]
+wtsapi32.WTSUnRegisterSessionNotification.restype = wintypes.BOOL
+wtsapi32.WTSUnRegisterSessionNotification.argtypes = [wintypes.HWND]
 
 # Razer Device Registry with known PIDs and protocol parameters
 RAZER_DEVICES = {
@@ -274,6 +288,40 @@ WM_DEVICECHANGE = 0x0219
 WM_POWERBROADCAST = 0x0218
 PBT_APMRESUMEAUTOMATIC = 0x0012
 PBT_APMRESUMESUSPEND = 0x0007
+PBT_POWERSETTINGCHANGE = 0x8013
+
+WM_WTSSESSION_CHANGE = 0x02B1
+WTS_SESSION_LOCK = 0x7
+WTS_SESSION_UNLOCK = 0x8
+WTS_SESSION_LOGON = 0x5
+NOTIFY_FOR_THIS_SESSION = 0
+
+DBT_DEVTYP_DEVICEINTERFACE = 0x00000005
+DEVICE_NOTIFY_WINDOW_HANDLE = 0x00000000
+
+class DEV_BROADCAST_DEVICEINTERFACE_W(ctypes.Structure):
+    _fields_ = [
+        ('dbcc_size', wintypes.DWORD),
+        ('dbcc_devicetype', wintypes.DWORD),
+        ('dbcc_reserved', wintypes.DWORD),
+        ('dbcc_classguid', GUID),
+        ('dbcc_name', wintypes.WCHAR * 1)
+    ]
+
+class POWERBROADCAST_SETTING(ctypes.Structure):
+    _fields_ = [
+        ('PowerSetting', GUID),
+        ('DataLength', wintypes.DWORD),
+        ('Data', wintypes.BYTE * 1)
+    ]
+
+# GUID_CONSOLE_DISPLAY_STATE: {238C0517-778D-4B3E-8C78-6ED4771F0522}
+# Sent on display turn-on, turn-off, and dimming (Modern Standby & display sleep wake)
+GUID_CONSOLE_DISPLAY_STATE = GUID(
+    0x238C0517, 0x778D, 0x4B3E,
+    (wintypes.BYTE * 8)(0x8C, 0x78, 0x6E, 0xD4, 0x77, 0x1F, 0x05, 0x22)
+)
+
 WM_TIMER = 0x0113
 
 ERROR_ALREADY_EXISTS = 183
@@ -296,6 +344,24 @@ class WNDCLASSW(ctypes.Structure):
     ]
 
 def wnd_proc(hwnd, msg, wparam, lparam):
+    # Session unlock or logon: immediate unlock with debounced safety follow-up
+    if msg == WM_WTSSESSION_CHANGE and wparam in (WTS_SESSION_UNLOCK, WTS_SESSION_LOGON):
+        unlock_all_keyboards()
+        user32.KillTimer(hwnd, TIMER_ID_DEBOUNCE)
+        user32.SetTimer(hwnd, TIMER_ID_DEBOUNCE, DEBOUNCE_DELAY_MS, None)
+        return 0
+
+    # Display wake-up (Modern Standby / S0ix)
+    if msg == WM_POWERBROADCAST and wparam == PBT_POWERSETTINGCHANGE and lparam:
+        try:
+            pbs = ctypes.cast(lparam, ctypes.POINTER(POWERBROADCAST_SETTING)).contents
+            if pbs.DataLength >= 1 and pbs.Data[0] in (1, 2):  # PowerMonitorOn (1) or PowerMonitorDim (2)
+                user32.KillTimer(hwnd, TIMER_ID_DEBOUNCE)
+                user32.SetTimer(hwnd, TIMER_ID_DEBOUNCE, DEBOUNCE_DELAY_MS, None)
+                return 0
+        except Exception:
+            pass
+
     # Debounce device reconnect, standby wake-up, or rescan events
     if msg in (WM_DEVICECHANGE, WM_APP_RESCAN) or (msg == WM_POWERBROADCAST and wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND)):
         # Reset timer so rapid successive events are collapsed into a single unlock
@@ -704,6 +770,20 @@ def main():
 
     hwnd = user32.CreateWindowExW(0, "RazerUnlockerServiceClass", "RazerUnlocker", 0, 0, 0, 0, 0, None, None, wnd_class.hInstance, None)
 
+    # Register for HID device notifications (ensures WM_DEVICECHANGE is delivered on USB plug/unplug)
+    dev_filter = DEV_BROADCAST_DEVICEINTERFACE_W()
+    dev_filter.dbcc_size = ctypes.sizeof(DEV_BROADCAST_DEVICEINTERFACE_W)
+    dev_filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE
+    dev_filter.dbcc_reserved = 0
+    hid.HidD_GetHidGuid(ctypes.byref(dev_filter.dbcc_classguid))
+    h_dev_notify = user32.RegisterDeviceNotificationW(hwnd, ctypes.byref(dev_filter), DEVICE_NOTIFY_WINDOW_HANDLE)
+
+    # Register for Session change notifications (unlock / logon)
+    wts_registered = bool(wtsapi32.WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION))
+
+    # Register for Display State notifications (Modern Standby / display wake-up)
+    h_power_notify = user32.RegisterPowerSettingNotification(hwnd, ctypes.byref(GUID_CONSOLE_DISPLAY_STATE), DEVICE_NOTIFY_WINDOW_HANDLE)
+
     # Attempt unlock on startup (retry up to 5 times)
     for _ in range(5):
         if unlock_all_keyboards():
@@ -715,6 +795,14 @@ def main():
     while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
         user32.TranslateMessage(ctypes.byref(msg))
         user32.DispatchMessageW(ctypes.byref(msg))
+
+    # Clean up notifications
+    if h_dev_notify:
+        user32.UnregisterDeviceNotification(h_dev_notify)
+    if wts_registered:
+        wtsapi32.WTSUnRegisterSessionNotification(hwnd)
+    if h_power_notify:
+        user32.UnregisterPowerSettingNotification(h_power_notify)
 
 if __name__ == '__main__':
     main()
