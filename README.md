@@ -60,8 +60,34 @@ For standard users and gamers, **no Python installation is required**:
 1. **Download:** Go to the [Releases](https://github.com/JustAmply/razer-macro-unlocker/releases) page and download **`RazerMacroUnlocker.exe`** (or the complete **`RazerMacroUnlocker-windows-x64.zip`** bundle).
 2. **Instant Run:** Simply launch **`RazerMacroUnlocker.exe`**. It will unlock all connected Razer keyboards and keypads immediately and run silently in the background with 0% CPU.
 3. **Autostart with Windows:**
-   - Put **`install_autostart.bat`** in the same folder as `RazerMacroUnlocker.exe` and run it.
-   - It will automatically create a shortcut in your Windows Startup folder (`shell:startup`) and start the service.
+   - Run `RazerMacroUnlocker.exe --install` in terminal or double-click **`install_autostart.bat`**.
+   - It automatically creates a shortcut in your Windows Startup folder (`shell:startup`) and launches the service.
+
+---
+
+## Command-Line Interface (CLI)
+
+`RazerMacroUnlocker.exe` (and `razer_unlocker.pyw`) supports built-in command-line arguments:
+
+```powershell
+# Configure autostart with Windows and launch background service
+.\RazerMacroUnlocker.exe --install
+
+# Remove autostart shortcut and terminate running background services
+.\RazerMacroUnlocker.exe --uninstall
+
+# Run interactive diagnostic test and live keystroke monitor
+.\RazerMacroUnlocker.exe --test
+
+# List all detected Razer control devices and their status
+.\RazerMacroUnlocker.exe --status
+
+# Send an immediate re-scan and unlock signal to the running background service
+.\RazerMacroUnlocker.exe --rescan
+
+# Display help message
+.\RazerMacroUnlocker.exe --help
+```
 
 ---
 
@@ -71,7 +97,7 @@ If you prefer to run from source or build the executable yourself:
 
 ### Option A: Run directly with Python
 1. Ensure Python 3.10+ is installed.
-2. Run **`install_autostart.bat`**. It detects `razer_unlocker_launcher.vbs` / `razer_unlocker.pyw` and configures autostart.
+2. Run `python razer_unlocker.pyw --install` or run **`install_autostart.bat`**.
 
 ### Option B: Build Standalone .exe Locally
 1. Run **`build_exe.bat`**.
@@ -81,10 +107,11 @@ If you prefer to run from source or build the executable yourself:
 
 ## Uninstallation
 
-- Run **`uninstall_autostart.bat`** to remove the autostart shortcut and terminate all running unlocker processes (both `RazerMacroUnlocker.exe` and Python background instances).
+- Run `RazerMacroUnlocker.exe --uninstall` (or **`uninstall_autostart.bat`**) to remove the autostart shortcut and terminate all running background instances.
 
 ---
 
 ## Live Diagnostic & Testing
 
-- Run **`run_test.bat`** to open an interactive console window that detects all connected Razer devices, unlocks them, and displays incoming keystrokes in real time.
+- Run `RazerMacroUnlocker.exe --test` (or **`run_test.bat`**) to open an interactive console window that detects all connected Razer devices, unlocks them, and displays incoming keystrokes in real time.
+

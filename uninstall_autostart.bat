@@ -1,23 +1,19 @@
 @echo off
 setlocal
-echo =======================================================
-echo   Universal Razer Macro Key Unlocker - Autostart Removal
-echo =======================================================
+set "SCRIPT_DIR=%~dp0"
+set "EXE_PATH=%SCRIPT_DIR%RazerMacroUnlocker.exe"
+set "DIST_EXE_PATH=%SCRIPT_DIR%dist\RazerMacroUnlocker.exe"
+set "PY_SCRIPT=%SCRIPT_DIR%razer_unlocker.pyw"
 
-set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "SHORTCUT_PATH=%STARTUP_FOLDER%\RazerUnlocker.lnk"
-
-if exist "%SHORTCUT_PATH%" (
-    del "%SHORTCUT_PATH%"
-    echo [OK] Autostart shortcut removed.
+if exist "%EXE_PATH%" (
+    "%EXE_PATH%" --uninstall
+) else if exist "%DIST_EXE_PATH%" (
+    "%DIST_EXE_PATH%" --uninstall
+) else if exist "%PY_SCRIPT%" (
+    python "%PY_SCRIPT%" --uninstall
 ) else (
-    echo [INFO] No autostart shortcut found.
+    echo [ERROR] Neither RazerMacroUnlocker.exe nor razer_unlocker.pyw found!
 )
 
-echo Terminating running background services...
-taskkill /F /IM RazerMacroUnlocker.exe >nul 2>&1
-powershell -Command "Get-CimInstance Win32_Process | Where-Object CommandLine -like '*razer_unlocker.pyw*' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" 2>nul
-
 echo.
-echo Uninstallation completed.
 pause

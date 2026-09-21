@@ -1,6 +1,18 @@
 @echo off
-title Razer BlackWidow Chroma V2 - Live Test
-cls
-echo Starting interactive Razer test...
-python "%~dp0test_interactive.py"
+setlocal
+title Universal Razer Macro Key Unlocker - Live Test
+set "SCRIPT_DIR=%~dp0"
+set "EXE_PATH=%SCRIPT_DIR%RazerMacroUnlocker.exe"
+set "DIST_EXE_PATH=%SCRIPT_DIR%dist\RazerMacroUnlocker.exe"
+set "PY_SCRIPT=%SCRIPT_DIR%razer_unlocker.pyw"
+
+if exist "%EXE_PATH%" (
+    "%EXE_PATH%" --test
+) else if exist "%DIST_EXE_PATH%" (
+    "%DIST_EXE_PATH%" --test
+) else if exist "%PY_SCRIPT%" (
+    python "%PY_SCRIPT%" --test
+) else (
+    python "%SCRIPT_DIR%test_interactive.py"
+)
 pause
