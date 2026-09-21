@@ -11,6 +11,7 @@ import ctypes
 from ctypes import wintypes
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -311,6 +312,14 @@ def wnd_proc(hwnd, msg, wparam, lparam):
         user32.PostQuitMessage(0)
         return 0
 
+    if msg == 0x0011: # WM_QUERYENDSESSION
+        return 1
+
+    if msg == 0x0016: # WM_ENDSESSION
+        if wparam:
+            user32.PostQuitMessage(0)
+        return 0
+
     return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -477,6 +486,38 @@ def get_autostart_registry():
     except (FileNotFoundError, OSError):
         return None
 
+def get_clean_env():
+    """Return an environment dictionary stripped of PyInstaller variables.
+    This ensures that child processes extract to their own temporary folder
+    and do not lock or reuse the parent installer's _MEI directory."""
+    env = os.environ.copy()
+    keys_to_remove = [k for k in env if k.startswith('_MEI') or k.startswith('_PYI') or k.startswith('PYINSTALLER')]
+    for k in keys_to_remove:
+        del env[k]
+    return env
+
+def cleanup_stale_mei_dirs():
+    """Safely purge orphaned _MEI directories left in %TEMP% by previous crashes or abrupt terminations.
+    Folders currently in use by running processes cannot be deleted and are safely skipped."""
+    temp_dir = os.environ.get('TEMP') or os.environ.get('TMP')
+    if not temp_dir or not os.path.isdir(temp_dir):
+        return
+
+    current_mei = getattr(sys, '_MEIPASS', None)
+    try:
+        for entry in os.listdir(temp_dir):
+            if entry.startswith('_MEI') and len(entry) > 4:
+                full_path = os.path.join(temp_dir, entry)
+                if current_mei and os.path.abspath(full_path) == os.path.abspath(current_mei):
+                    continue
+                if os.path.isdir(full_path):
+                    try:
+                        shutil.rmtree(full_path, ignore_errors=False)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
 def cli_install():
     ensure_console()
     print("=" * 60)
@@ -506,25 +547,38 @@ def cli_install():
     ok = set_autostart_registry(run_command)
     if ok:
         print("\n[OK] Autostart successfully registered in Windows Registry!")
-        print("Starting background service...")
-        try:
-            if not is_frozen:
-                os.startfile(target_path, arguments=f'"{script_path}"', cwd=work_dir)
-            else:
-                os.startfile(target_path, cwd=work_dir)
-        except Exception:
-            DETACHED_PROCESS = 0x00000008
-            CREATE_NEW_PROCESS_GROUP = 0x00000200
-            subprocess.Popen(
-                launch_cmd,
-                cwd=work_dir,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                close_fds=True,
-                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-            )
-        print("[OK] Razer Macro Unlocker is now running in the background.")
+
+        # Check if service is already running
+        hwnd_existing = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
+        if hwnd_existing:
+            user32.PostMessageW(hwnd_existing, WM_APP_RESCAN, 0, 0)
+            print("[OK] Background service is already running. Sent rescan signal.")
+        else:
+            print("Starting background service...")
+            # Sanitize current environment so child process does not inherit and lock parent's _MEI directory
+            for k in list(os.environ.keys()):
+                if k.startswith('_MEI') or k.startswith('_PYI') or k.startswith('PYINSTALLER'):
+                    del os.environ[k]
+
+            try:
+                if not is_frozen:
+                    os.startfile(target_path, arguments=f'"{script_path}"', cwd=work_dir)
+                else:
+                    os.startfile(target_path, cwd=work_dir)
+            except Exception:
+                DETACHED_PROCESS = 0x00000008
+                CREATE_NEW_PROCESS_GROUP = 0x00000200
+                subprocess.Popen(
+                    launch_cmd,
+                    cwd=work_dir,
+                    env=os.environ,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    close_fds=True,
+                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+                )
+            print("[OK] Razer Macro Unlocker is now running in the background.")
     else:
         print("\n[ERROR] Failed to configure autostart in Windows Registry.")
 
@@ -603,6 +657,9 @@ _instance_mutex = None
 def main():
     global _instance_mutex
 
+    # Clean up any stale orphaned _MEI directories from previous crashes
+    cleanup_stale_mei_dirs()
+
     # Handle CLI arguments
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower()
@@ -636,21 +693,22 @@ def main():
             kernel32.CloseHandle(_instance_mutex)
         sys.exit(0)
 
-    # Attempt unlock on startup (retry up to 5 times)
-    for _ in range(5):
-        if unlock_all_keyboards():
-            break
-        time.sleep(2.0)
-
-    # Register hidden message-only window to receive USB and Power events
-    wnd_proc_cb = WNDPROC(wnd_proc)
+    # Register hidden window to receive USB and Power events
+    global _wnd_proc_cb
+    _wnd_proc_cb = WNDPROC(wnd_proc)
     wnd_class = WNDCLASSW()
-    wnd_class.lpfnWndProc = wnd_proc_cb
+    wnd_class.lpfnWndProc = _wnd_proc_cb
     wnd_class.lpszClassName = "RazerUnlockerServiceClass"
     wnd_class.hInstance = kernel32.GetModuleHandleW(None)
     user32.RegisterClassW(ctypes.byref(wnd_class))
 
     hwnd = user32.CreateWindowExW(0, "RazerUnlockerServiceClass", "RazerUnlocker", 0, 0, 0, 0, 0, None, None, wnd_class.hInstance, None)
+
+    # Attempt unlock on startup (retry up to 5 times)
+    for _ in range(5):
+        if unlock_all_keyboards():
+            break
+        time.sleep(2.0)
 
     # Passive message loop (0% CPU usage)
     msg = wintypes.MSG()
