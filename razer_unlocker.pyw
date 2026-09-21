@@ -42,6 +42,29 @@ kernel32.AttachConsole.argtypes = [wintypes.DWORD]
 kernel32.AllocConsole.restype = wintypes.BOOL
 kernel32.AllocConsole.argtypes = []
 
+TH32CS_SNAPPROCESS = 0x00000002
+
+class PROCESSENTRY32(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", wintypes.DWORD),
+        ("cntUsage", wintypes.DWORD),
+        ("th32ProcessID", wintypes.DWORD),
+        ("th32DefaultHeapID", ctypes.c_size_t),
+        ("th32ModuleID", wintypes.DWORD),
+        ("cntThreads", wintypes.DWORD),
+        ("th32ParentProcessID", wintypes.DWORD),
+        ("pcPriClassBase", wintypes.LONG),
+        ("dwFlags", wintypes.DWORD),
+        ("szExeFile", ctypes.c_char * 260)
+    ]
+
+kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+kernel32.Process32First.restype = wintypes.BOOL
+kernel32.Process32First.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
+kernel32.Process32Next.restype = wintypes.BOOL
+kernel32.Process32Next.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
+
 hid.HidD_SetFeature.restype = wintypes.BOOL
 hid.HidD_SetFeature.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.ULONG]
 hid.HidD_GetFeature.restype = wintypes.BOOL
@@ -290,7 +313,7 @@ M_KEYS = {
 }
 
 def ensure_console():
-    # If stdout is already an active, valid stream with a real file descriptor, keep it
+    # 1. If stdout is already an active, valid stream with a real file descriptor, keep it
     try:
         if sys.stdout is not None and hasattr(sys.stdout, 'fileno'):
             sys.stdout.fileno()
@@ -299,10 +322,41 @@ def ensure_console():
     except Exception:
         pass
 
+    # 2. Try direct parent first
     ATTACH_PARENT_PROCESS = 0xFFFFFFFF
     attached = kernel32.AttachConsole(ATTACH_PARENT_PROCESS)
+
+    # 3. If direct parent failed (e.g. in PyInstaller onefile where direct parent is the GUI bootloader),
+    # walk parent process chain to find the actual calling console (e.g. cmd.exe, pwsh.exe, etc.)
     if not attached:
-        kernel32.AllocConsole()
+        hSnap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if hSnap and hSnap != -1 and hSnap != 0xFFFFFFFFFFFFFFFF:
+            pe = PROCESSENTRY32()
+            pe.dwSize = ctypes.sizeof(PROCESSENTRY32)
+            proc_map = {}
+            if kernel32.Process32First(hSnap, ctypes.byref(pe)):
+                while True:
+                    proc_map[pe.th32ProcessID] = pe.th32ParentProcessID
+                    if not kernel32.Process32Next(hSnap, ctypes.byref(pe)):
+                        break
+            kernel32.CloseHandle(hSnap)
+
+            curr = os.getpid()
+            for _ in range(5):
+                parent = proc_map.get(curr, 0)
+                if parent == 0 or parent == curr:
+                    break
+                if kernel32.AttachConsole(parent):
+                    attached = True
+                    break
+                curr = parent
+
+    # 4. Only allocate a new console window for interactive test mode when run outside any console
+    if not attached:
+        if any(arg in sys.argv for arg in ('--test', '-t', 'test')):
+            kernel32.AllocConsole()
+        else:
+            return
 
     try:
         sys.stdout = open('CONOUT$', 'w', encoding='utf-8', buffering=1)
