@@ -22,7 +22,7 @@ setupapi = ctypes.WinDLL('setupapi.dll')
 
 LRESULT = ctypes.c_longlong
 WPARAM = ctypes.c_ulonglong
-LPARAM = ctypes.c_longlong
+LPARAM = ctypes.c_size_t
 
 kernel32.CreateFileW.restype = wintypes.HANDLE
 kernel32.CreateFileW.argtypes = [
@@ -290,13 +290,14 @@ M_KEYS = {
 }
 
 def ensure_console():
-    # If stdout is already an active, writable stream, don't redirect
-    if sys.stdout is not None:
-        try:
+    # If stdout is already an active, valid stream with a real file descriptor, keep it
+    try:
+        if sys.stdout is not None and hasattr(sys.stdout, 'fileno'):
+            sys.stdout.fileno()
             sys.stdout.flush()
             return
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     ATTACH_PARENT_PROCESS = 0xFFFFFFFF
     attached = kernel32.AttachConsole(ATTACH_PARENT_PROCESS)
@@ -417,9 +418,23 @@ def cli_install():
     if ok:
         print("\n[OK] Autostart shortcut successfully created!")
         print("Starting background service...")
-        DETACHED_PROCESS = 0x00000008
-        CREATE_NEW_PROCESS_GROUP = 0x00000200
-        subprocess.Popen(launch_cmd, cwd=work_dir, creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+        try:
+            if arguments:
+                os.startfile(target_path, arguments=arguments, cwd=work_dir)
+            else:
+                os.startfile(target_path, cwd=work_dir)
+        except Exception:
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_PROCESS_GROUP = 0x00000200
+            subprocess.Popen(
+                launch_cmd,
+                cwd=work_dir,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+            )
         print("[OK] Razer Macro Unlocker is now running in the background.")
     else:
         print("\n[ERROR] Failed to create autostart shortcut.")
@@ -435,10 +450,9 @@ def cli_uninstall():
     hwnd = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
     if hwnd:
         user32.PostMessageW(hwnd, 0x0010, 0, 0) # WM_CLOSE
-        print("  - Sent stop signal to RazerUnlocker service window.")
-
-    # Also kill by image name to ensure complete cleanup
-    subprocess.run(["taskkill", "/f", "/im", "RazerMacroUnlocker.exe"], capture_output=True)
+        print("  [OK] Sent stop signal to RazerUnlocker background service.")
+    else:
+        print("  [INFO] No running RazerUnlocker background service found.")
 
     # 2. Remove startup shortcut
     shortcut_path = get_startup_shortcut_path()
