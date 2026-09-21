@@ -34,16 +34,21 @@ A lightweight, silent Windows background service that automatically unlocks dedi
 | **Razer BlackWidow Overwatch** | `0x0211` | M1–M5 | `F13`–`F17` |
 | **Razer BlackWidow Ultimate 2016** | `0x0214` | M1–M5 | `F13`–`F17` |
 | **Razer BlackWidow Chroma V2** | `0x0221` | M1–M5 | `F13`–`F17` |
+| **Razer BlackWidow Elite** | `0x0228` | Macro functions | `F13`–`F17` |
 | **Razer Tartarus V2** | `0x022B` | Keys 01–19 | Extended Keys |
+| **Razer Tartarus Pro** | `0x0244` | Keys 01–20 | Extended Keys (`F13`–`F24`) |
+| **Razer BlackWidow V3** | `0x024E` | Macro functions | `F13`–`F17` |
+| **Razer BlackWidow V3 Pro** | `0x0256` | Macro functions | `F13`–`F17` |
 | **Razer BlackWidow V4** | `0x0287` / `0x028C` | M1–M5 | `F13`–`F17` |
-| **Razer BlackWidow V4 Pro** | `0x028D` | M1–M5 + M6–M8 | `F13`–`F17` + Extended |
+| **Razer BlackWidow V4 Pro** | `0x028D` | M1–M5 + M6–M8 | `F13`–`F20` |
+| **Razer BlackWidow V4 X** | `0x0293` | M1–M6 | `F13`–`F18` |
 | **Razer BlackWidow V4 75%** | `0x029F` | Macro functions | Extended Keys |
 | **Razer BlackWidow V4 Pro 75%** | `0x02B3` | Macro functions | Extended Keys |
-| **Any Unlisted Razer Device** | `VID: 0x1532` | Automatic Detection | Safe Mode 0x02 Fallback |
+| **Any Unlisted Razer Device** | `VID: 0x1532` | Automatic Detection | Dynamic Fallback (0x1F / 0x00) |
 
 ---
 
-## Key Mapping (M1–M5)
+## Key Mapping (M1–M8 & Keypads to F13–F24)
 
 | Physical Key | Virtual-Key Code | Windows Virtual Key | Hardware ScanCode |
 | :--- | :--- | :--- | :--- |
@@ -52,6 +57,13 @@ A lightweight, silent Windows background service that automatically unlocks dedi
 | **M3** | `0x7E` (126) | **`F15`** | `0x66` |
 | **M4** | `0x7F` (127) | **`F16`** | `0x67` |
 | **M5** | `0x80` (128) | **`F17`** | `0x68` |
+| **M6 / Keypad** | `0x81` (129) | **`F18`** | `0x69` |
+| **M7 / Keypad** | `0x82` (130) | **`F19`** | `0x6A` |
+| **M8 / Keypad** | `0x83` (131) | **`F20`** | `0x6B` |
+| **Keypad** | `0x84` (132) | **`F21`** | `0x6C` |
+| **Keypad** | `0x85` (133) | **`F22`** | `0x6D` |
+| **Keypad** | `0x86` (134) | **`F23`** | `0x6E` |
+| **Keypad** | `0x87` (135) | **`F24`** | `0x6F` |
 
 ## Download & Quick Start (No Python Required!)
 
