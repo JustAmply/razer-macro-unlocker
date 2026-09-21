@@ -31,6 +31,10 @@ kernel32.CloseHandle.restype = wintypes.BOOL
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 kernel32.GetModuleHandleW.restype = wintypes.HINSTANCE
 kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+kernel32.CreateMutexW.restype = wintypes.HANDLE
+kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+kernel32.GetLastError.restype = wintypes.DWORD
+kernel32.GetLastError.argtypes = []
 
 hid.HidD_SetFeature.restype = wintypes.BOOL
 hid.HidD_SetFeature.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.ULONG]
@@ -90,6 +94,10 @@ user32.TranslateMessage.restype = wintypes.BOOL
 user32.TranslateMessage.argtypes = [ctypes.c_void_p]
 user32.DispatchMessageW.restype = LRESULT
 user32.DispatchMessageW.argtypes = [ctypes.c_void_p]
+user32.FindWindowW.restype = wintypes.HWND
+user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+user32.PostMessageW.restype = wintypes.BOOL
+user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, WPARAM, LPARAM]
 
 # Razer Device Registry with known PIDs and protocol parameters
 RAZER_DEVICES = {
@@ -204,6 +212,11 @@ WM_POWERBROADCAST = 0x0218
 PBT_APMRESUMEAUTOMATIC = 0x0012
 PBT_APMRESUMESUSPEND = 0x0007
 
+ERROR_ALREADY_EXISTS = 183
+SINGLE_INSTANCE_MUTEX = "Local\\RazerMacroUnlocker_SingleInstance"
+WM_APP = 0x8000
+WM_APP_RESCAN = WM_APP + 1
+
 WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, WPARAM, LPARAM)
 
 class WNDCLASSW(ctypes.Structure):
@@ -216,14 +229,29 @@ class WNDCLASSW(ctypes.Structure):
     ]
 
 def wnd_proc(hwnd, msg, wparam, lparam):
-    # Re-unlock keyboards on device reconnect or standby wake-up
-    if msg == WM_DEVICECHANGE or (msg == WM_POWERBROADCAST and wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND)):
+    # Re-unlock keyboards on device reconnect, standby wake-up, or rescan request
+    if msg == WM_DEVICECHANGE or (msg == WM_POWERBROADCAST and wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND)) or msg == WM_APP_RESCAN:
         time.sleep(1.0) # Small delay to allow USB enumeration to complete
         unlock_all_keyboards()
         return 0
     return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
 
+_instance_mutex = None
+
 def main():
+    global _instance_mutex
+
+    # Enforce single instance via named Windows Mutex
+    _instance_mutex = kernel32.CreateMutexW(None, True, SINGLE_INSTANCE_MUTEX)
+    if not _instance_mutex or kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        # If an instance is already running, signal it to rescan devices and exit
+        hwnd_existing = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
+        if hwnd_existing:
+            user32.PostMessageW(hwnd_existing, WM_APP_RESCAN, 0, 0)
+        if _instance_mutex:
+            kernel32.CloseHandle(_instance_mutex)
+        sys.exit(0)
+
     # Attempt unlock on startup (retry up to 5 times)
     for _ in range(5):
         if unlock_all_keyboards():
