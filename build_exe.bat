@@ -9,11 +9,22 @@ echo.
 set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 
+REM Stop any running instances so the executable is not locked by Windows
+tasklist /FI "IMAGENAME eq RazerMacroUnlocker.exe" 2>nul | find /I "RazerMacroUnlocker.exe" >nul
+if %ERRORLEVEL% equ 0 (
+    echo [INFO] Detected running RazerMacroUnlocker instance. Stopping it before build...
+    taskkill /F /IM RazerMacroUnlocker.exe >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
+set "BUILD_EXIT_CODE=0"
+
 REM Check for uv first
 where uv >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     echo [INFO] Found uv package manager. Building with uv and PyInstaller...
     uv run --with pyinstaller pyinstaller --onefile --noconsole --clean --name RazerMacroUnlocker razer_unlocker.pyw
+    set "BUILD_EXIT_CODE=!ERRORLEVEL!"
     goto check_result
 )
 
@@ -40,9 +51,10 @@ if %ERRORLEVEL% neq 0 (
 
 echo [INFO] Building standalone executable...
 python -m PyInstaller --onefile --noconsole --clean --name RazerMacroUnlocker razer_unlocker.pyw
+set "BUILD_EXIT_CODE=!ERRORLEVEL!"
 
 :check_result
-if exist "dist\RazerMacroUnlocker.exe" (
+if !BUILD_EXIT_CODE! equ 0 if exist "dist\RazerMacroUnlocker.exe" (
     echo.
     echo =======================================================
     echo   [OK] Build successful!
@@ -51,7 +63,10 @@ if exist "dist\RazerMacroUnlocker.exe" (
     echo =======================================================
 ) else (
     echo.
-    echo [ERROR] Build failed! Check the output above for details.
+    echo =======================================================
+    echo   [ERROR] Build failed with exit code !BUILD_EXIT_CODE!!
+    echo   Check the output above for details.
+    echo =======================================================
 )
 
 echo.
