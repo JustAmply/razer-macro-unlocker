@@ -153,11 +153,15 @@ RAZER_DEVICES = {
     0x0211: {"name": "Razer BlackWidow Overwatch", "tx_id": 0x00, "mode": 0x02},
     0x0214: {"name": "Razer BlackWidow Ultimate 2016", "tx_id": 0x00, "mode": 0x02},
     0x0221: {"name": "Razer BlackWidow Chroma V2", "tx_id": 0x00, "mode": 0x02},
+    0x0228: {"name": "Razer BlackWidow Elite", "tx_id": 0x00, "mode": 0x02},
+    0x024E: {"name": "Razer BlackWidow V3", "tx_id": 0x00, "mode": 0x02},
+    0x0256: {"name": "Razer BlackWidow V3 Pro", "tx_id": 0x00, "mode": 0x02},
 
     # Modern V4 Generation Keyboards with M1-M5 / M1-M8
     0x0287: {"name": "Razer BlackWidow V4", "tx_id": 0x1F, "mode": 0x02},
     0x028C: {"name": "Razer BlackWidow V4 (Alt)", "tx_id": 0x1F, "mode": 0x02},
     0x028D: {"name": "Razer BlackWidow V4 Pro", "tx_id": 0x1F, "mode": 0x02},
+    0x0293: {"name": "Razer BlackWidow V4 X", "tx_id": 0x1F, "mode": 0x02},
     0x029F: {"name": "Razer BlackWidow V4 75%", "tx_id": 0x1F, "mode": 0x02},
     0x02B3: {"name": "Razer BlackWidow V4 Pro 75%", "tx_id": 0x1F, "mode": 0x02},
 
@@ -168,6 +172,7 @@ RAZER_DEVICES = {
     0x0207: {"name": "Razer Orbweaver Chroma", "tx_id": 0x00, "mode": 0x02},
     0x0208: {"name": "Razer Tartarus Chroma", "tx_id": 0x00, "mode": 0x02},
     0x022B: {"name": "Razer Tartarus V2", "tx_id": 0x00, "mode": 0x02},
+    0x0244: {"name": "Razer Tartarus Pro", "tx_id": 0x00, "mode": 0x02},
 }
 
 def calc_crc(buf):
