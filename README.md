@@ -53,18 +53,35 @@ A lightweight, silent Windows background service that automatically unlocks dedi
 | **M4** | `0x7F` (127) | **`F16`** | `0x67` |
 | **M5** | `0x80` (128) | **`F17`** | `0x68` |
 
+## Download & Quick Start (No Python Required!)
+
+For standard users and gamers, **no Python installation is required**:
+
+1. **Download:** Go to the [Releases](https://github.com/JustAmply/razer-macro-unlocker/releases) page and download **`RazerMacroUnlocker.exe`** (or the complete **`RazerMacroUnlocker-windows-x64.zip`** bundle).
+2. **Instant Run:** Simply launch **`RazerMacroUnlocker.exe`**. It will unlock all connected Razer keyboards and keypads immediately and run silently in the background with 0% CPU.
+3. **Autostart with Windows:**
+   - Put **`install_autostart.bat`** in the same folder as `RazerMacroUnlocker.exe` and run it.
+   - It will automatically create a shortcut in your Windows Startup folder (`shell:startup`) and start the service.
+
 ---
 
-## Installation
+## Installation & Usage (From Source)
 
-1. Run **`install_autostart.bat`**.
-2. The script creates an autostart shortcut in your Windows Startup directory (`shell:startup`) and starts the service silently in the background.
+If you prefer to run from source or build the executable yourself:
+
+### Option A: Run directly with Python
+1. Ensure Python 3.10+ is installed.
+2. Run **`install_autostart.bat`**. It detects `razer_unlocker_launcher.vbs` / `razer_unlocker.pyw` and configures autostart.
+
+### Option B: Build Standalone .exe Locally
+1. Run **`build_exe.bat`**.
+2. PyInstaller will compile `razer_unlocker.pyw` into a portable `dist\RazerMacroUnlocker.exe`.
 
 ---
 
 ## Uninstallation
 
-- Run **`uninstall_autostart.bat`** to remove the autostart shortcut and terminate running service processes.
+- Run **`uninstall_autostart.bat`** to remove the autostart shortcut and terminate all running unlocker processes (both `RazerMacroUnlocker.exe` and Python background instances).
 
 ---
 
