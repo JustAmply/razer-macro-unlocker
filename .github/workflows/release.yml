@@ -1,0 +1,78 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release version tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+        type: string
+      release_name:
+        description: 'Release title (leave blank to use tag)'
+        required: false
+        default: ''
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build standalone executable with PyInstaller
+        run: |
+          pyinstaller --onefile --noconsole --name RazerMacroUnlocker razer_unlocker.pyw
+
+      - name: Package release assets
+        shell: pwsh
+        run: |
+          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag_name }}' } else { '${{ github.ref_name }}' }
+          $zipName = "RazerMacroUnlocker-$tag-windows-x64.zip"
+          
+          New-Item -ItemType Directory -Path "release_bundle" -Force | Out-Null
+          Copy-Item "dist\RazerMacroUnlocker.exe" -Destination "release_bundle\"
+          Copy-Item "install_autostart.bat" -Destination "release_bundle\"
+          Copy-Item "uninstall_autostart.bat" -Destination "release_bundle\"
+          Copy-Item "README.md" -Destination "release_bundle\"
+          
+          Compress-Archive -Path "release_bundle\*" -DestinationPath $zipName -Force
+          
+          "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ inputs.release_name != '' && inputs.release_name || env.RELEASE_TAG }}
+          draft: false
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
+          files: |
+            dist/RazerMacroUnlocker.exe
+            ${{ env.ZIP_NAME }}
