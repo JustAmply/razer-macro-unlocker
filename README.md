@@ -60,7 +60,7 @@ For standard users and gamers, **no Python installation is required**:
 1. **Download:** Go to the [Releases](https://github.com/JustAmply/razer-macro-unlocker/releases) page and download **`RazerMacroUnlocker.exe`** (or the complete **`RazerMacroUnlocker-windows-x64.zip`** bundle).
 2. **Instant Run:** Simply launch **`RazerMacroUnlocker.exe`**. It will unlock all connected Razer keyboards and keypads immediately and run silently in the background with 0% CPU.
 3. **Autostart with Windows:**
-   - Run `RazerMacroUnlocker.exe --install` in your terminal or Command Prompt.
+   - Double-click **`install_autostart.bat`** (or run `RazerMacroUnlocker.exe --install` in terminal).
    - It automatically creates a shortcut in your Windows Startup folder (`shell:startup`) and launches the service.
 
 ---
@@ -97,7 +97,7 @@ If you prefer to run from source or build the executable yourself:
 
 ### Option A: Run directly with Python
 1. Ensure Python 3.10+ is installed.
-2. Run `python razer_unlocker.pyw --install` to configure autostart and launch the service.
+2. Run **`install_autostart.bat`** or `python razer_unlocker.pyw --install` to configure autostart and launch the service.
 
 ### Option B: Build Standalone .exe Locally
 1. Run **`build_exe.bat`**.
@@ -107,11 +107,11 @@ If you prefer to run from source or build the executable yourself:
 
 ## Uninstallation
 
-- Run `RazerMacroUnlocker.exe --uninstall` (or `python razer_unlocker.pyw --uninstall`) to remove the autostart shortcut and terminate all running background instances.
+- Run **`uninstall_autostart.bat`** (or `RazerMacroUnlocker.exe --uninstall`) to remove the autostart shortcut and terminate all running background instances.
 
 ---
 
 ## Live Diagnostic & Testing
 
-- Run `RazerMacroUnlocker.exe --test` (or `python razer_unlocker.pyw --test`) to open an interactive console window that detects all connected Razer devices, unlocks them, and displays incoming keystrokes in real time.
+- Run **`run_test.bat`** (or `RazerMacroUnlocker.exe --test`) to open an interactive console window that detects all connected Razer devices, unlocks them, and displays incoming keystrokes in real time.
 
