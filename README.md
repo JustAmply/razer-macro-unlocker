@@ -45,7 +45,7 @@ For standard users, **no Python installation is required**:
 1. **Download:** Go to the [Releases](https://github.com/JustAmply/razer-macro-unlocker/releases) page and download **`RazerMacroUnlocker.exe`** (or the complete **`RazerMacroUnlocker-windows-x64.zip`** bundle).
 2. **Run Once:** Launch `RazerMacroUnlocker.exe`. It unlocks all connected Razer keyboards immediately and runs silently in the background.
 3. **Autostart with Windows (Optional):**
-   - Double-click **`install_autostart.bat`** (or run `RazerMacroUnlocker.exe -i` in a terminal).
+   - Double-click **`install_autostart.bat`** (or run `RazerMacroUnlocker.exe --install` in a terminal).
    - This registers the application in the Windows Registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) and starts the service.
 
 > [!IMPORTANT]
@@ -60,26 +60,26 @@ For standard users, **no Python installation is required**:
 
 ## Command-Line Interface (CLI)
 
-`RazerMacroUnlocker.exe` (and `razer_unlocker.pyw`) supports both long and short command-line arguments:
+`RazerMacroUnlocker.exe` (and `razer_unlocker.pyw`) supports built-in command-line arguments:
 
 ```powershell
 # Configure autostart with Windows and start background service
-.\RazerMacroUnlocker.exe -i   # or --install
+.\RazerMacroUnlocker.exe --install   # (or -i)
 
 # Remove autostart entry and stop running background service
-.\RazerMacroUnlocker.exe -u   # or --uninstall
+.\RazerMacroUnlocker.exe --uninstall # (or -u)
 
 # Run interactive diagnostic test and live keystroke monitor
-.\RazerMacroUnlocker.exe -t   # or --test
+.\RazerMacroUnlocker.exe --test      # (or -t)
 
 # List detected Razer control devices and their status
-.\RazerMacroUnlocker.exe -s   # or --status
+.\RazerMacroUnlocker.exe --status    # (or -s)
 
 # Send an immediate re-scan signal to the running background service
-.\RazerMacroUnlocker.exe -r   # or --rescan
+.\RazerMacroUnlocker.exe --rescan    # (or -r)
 
 # Display help message
-.\RazerMacroUnlocker.exe -h   # or --help
+.\RazerMacroUnlocker.exe --help      # (or -h)
 ```
 
 ---
@@ -167,7 +167,7 @@ All Razer devices share Vendor ID `0x1532`. Unlisted Razer keyboards are dynamic
 ## Live Diagnostic & Testing
 
 To test device detection and see your keystrokes live:
-- Run **`run_test.bat`** (or execute `RazerMacroUnlocker.exe -t` / `python razer_unlocker.pyw -t`).
+- Run **`run_test.bat`** (or execute `RazerMacroUnlocker.exe --test` / `python razer_unlocker.pyw --test`).
 - An interactive console opens, lists detected devices, unlocks them, and logs all incoming keystrokes in real time. Press `Escape` to close the test.
 
 ---
@@ -187,5 +187,5 @@ To test device detection and see your keystrokes live:
 
 ## Uninstallation
 
-- Run **`uninstall_autostart.bat`** (or `RazerMacroUnlocker.exe -u`).
+- Run **`uninstall_autostart.bat`** (or `RazerMacroUnlocker.exe --uninstall`).
 - This removes the Windows Registry autostart entry and terminates any running background service instances.
