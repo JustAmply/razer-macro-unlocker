@@ -82,6 +82,15 @@ For standard users, **no Python installation is required**:
 .\RazerMacroUnlocker.exe --help      # (or -h)
 ```
 
+`--status` shows whether the background service is running, whether autostart is configured,
+the last scan result, and detected control devices. Detection alone does not prove that
+the macro keys are unlocked. Use `--test` and press a macro key to verify its F13–F24 output.
+`--rescan` returns a successful exit code when its request reaches the running service;
+the last scan result appears under `--status` after the service processes it. Without a
+running service, `--rescan` attempts to unlock directly and reports failure with exit code 1.
+Invalid options return exit code 2. The interactive test's Escape key is global while
+the listener is active, so it works even when another window has focus.
+
 ---
 
 ## Key Mapping
@@ -169,6 +178,10 @@ All Razer devices share Vendor ID `0x1532`. Unlisted Razer keyboards are dynamic
 To test device detection and see your keystrokes live:
 - Run **`run_test.bat`** (or execute `RazerMacroUnlocker.exe --test` / `python razer_unlocker.pyw --test`).
 - An interactive console opens, lists detected devices, unlocks them, and logs all incoming keystrokes in real time. Press `Escape` to close the test.
+
+The background service writes its latest scan summary to
+`%LOCALAPPDATA%\RazerMacroUnlocker\status.txt`. This reports whether an HID feature report
+was accepted; the interactive key test is still needed to confirm actual key output.
 
 ---
 
