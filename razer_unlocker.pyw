@@ -11,7 +11,6 @@ import ctypes
 from ctypes import wintypes
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -464,7 +463,12 @@ M_KEYS = {
     0x87: ("Keypad", "F24"),
 }
 
+_own_console = False
+
 def ensure_console():
+    global _own_console
+    if _own_console:
+        return
     # 1. If stdout is already an active, valid stream with a real file descriptor, keep it
     try:
         if sys.stdout is not None and hasattr(sys.stdout, 'fileno'):
@@ -503,18 +507,25 @@ def ensure_console():
                     break
                 curr = parent
 
-    # 4. Only allocate a new console window for interactive test mode when run outside any console
+    # 4. Show CLI feedback when launched outside a terminal.
     if not attached:
-        if any(arg in sys.argv for arg in ('--test', '-t', 'test')):
-            kernel32.AllocConsole()
-        else:
+        if not kernel32.AllocConsole():
             return
+        _own_console = True
 
     try:
         sys.stdout = open('CONOUT$', 'w', encoding='utf-8', buffering=1)
         sys.stderr = open('CONOUT$', 'w', encoding='utf-8', buffering=1)
     except Exception:
         pass
+
+def exit_cli(code):
+    if _own_console:
+        try:
+            input("\nPress Enter to close...")
+        except (EOFError, OSError):
+            pass
+    sys.exit(code)
 
 def run_interactive_test():
     ensure_console()
@@ -525,8 +536,7 @@ def run_interactive_test():
     devices = find_all_razer_ctrl_devices()
     if not devices:
         print("ERROR: No Razer devices found with 91-byte control endpoints.")
-        input("\nPress Enter to exit...")
-        return
+        return 1
 
     print(f"Found {len(devices)} Razer control device(s):")
     for path, pid in devices:
@@ -537,7 +547,7 @@ def run_interactive_test():
 
     print("\nLive key listener is active.")
     print("Press M1 to M8, Keypad keys, or any standard keys.")
-    print("To exit, press ESCAPE in this console window.\n")
+    print("Escape exits the test from any window.\n")
 
     def hook_callback(nCode, wParam, lParam):
         if nCode >= 0:
@@ -549,7 +559,6 @@ def run_interactive_test():
                 print(f"  >>> [MACRO KEY] {m_label} -> Windows detects {f_key} ({state}) | VK=0x{kb.vkCode:02X}, ScanCode=0x{kb.scanCode:02X}")
             else:
                 print(f"  Key: {state} | VK=0x{kb.vkCode:02X} (Dec: {kb.vkCode}), ScanCode=0x{kb.scanCode:02X}")
-
             if kb.vkCode == 0x1B: # Escape
                 print("\nEscape pressed - exiting...")
                 user32.PostQuitMessage(0)
@@ -560,8 +569,7 @@ def run_interactive_test():
     h_hook = user32.SetWindowsHookExW(13, cb, None, 0)
     if not h_hook:
         print("Hook setup error:", kernel32.GetLastError())
-        input("\nPress Enter to exit...")
-        return
+        return 1
 
     msg = wintypes.MSG()
     while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
@@ -570,6 +578,7 @@ def run_interactive_test():
 
     user32.UnhookWindowsHookEx(h_hook)
     print("Test completed successfully.")
+    return 0
 
 REG_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 REG_APP_NAME = "RazerUnlocker"
@@ -589,7 +598,7 @@ def remove_autostart_registry():
             winreg.DeleteValue(key, REG_APP_NAME)
         return True
     except FileNotFoundError:
-        return False
+        return None
     except OSError as e:
         print(f"[WARNING] Failed to remove registry autostart: {e}")
         return False
@@ -603,36 +612,9 @@ def get_autostart_registry():
         return None
 
 def get_clean_env():
-    """Return an environment dictionary stripped of PyInstaller variables.
-    This ensures that child processes extract to their own temporary folder
-    and do not lock or reuse the parent installer's _MEI directory."""
-    env = os.environ.copy()
-    keys_to_remove = [k for k in env if k.startswith('_MEI') or k.startswith('_PYI') or k.startswith('PYINSTALLER')]
-    for k in keys_to_remove:
-        del env[k]
-    return env
-
-def cleanup_stale_mei_dirs():
-    """Safely purge orphaned _MEI directories left in %TEMP% by previous crashes or abrupt terminations.
-    Folders currently in use by running processes cannot be deleted and are safely skipped."""
-    temp_dir = os.environ.get('TEMP') or os.environ.get('TMP')
-    if not temp_dir or not os.path.isdir(temp_dir):
-        return
-
-    current_mei = getattr(sys, '_MEIPASS', None)
-    try:
-        for entry in os.listdir(temp_dir):
-            if entry.startswith('_MEI') and len(entry) > 4:
-                full_path = os.path.join(temp_dir, entry)
-                if current_mei and os.path.abspath(full_path) == os.path.abspath(current_mei):
-                    continue
-                if os.path.isdir(full_path):
-                    try:
-                        shutil.rmtree(full_path, ignore_errors=False)
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+    """Keep a spawned one-file executable out of this process's extraction directory."""
+    return {key: value for key, value in os.environ.items()
+            if not key.startswith(('_MEI', '_PYI', 'PYINSTALLER'))}
 
 def cli_install():
     ensure_console()
@@ -661,42 +643,48 @@ def cli_install():
     print(f"  Command: {run_command}")
 
     ok = set_autostart_registry(run_command)
-    if ok:
-        print("\n[OK] Autostart successfully registered in Windows Registry!")
-
-        # Check if service is already running
-        hwnd_existing = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
-        if hwnd_existing:
-            user32.PostMessageW(hwnd_existing, WM_APP_RESCAN, 0, 0)
-            print("[OK] Background service is already running. Sent rescan signal.")
-        else:
-            print("Starting background service...")
-            # Sanitize current environment so child process does not inherit and lock parent's _MEI directory
-            for k in list(os.environ.keys()):
-                if k.startswith('_MEI') or k.startswith('_PYI') or k.startswith('PYINSTALLER'):
-                    del os.environ[k]
-
-            try:
-                if not is_frozen:
-                    os.startfile(target_path, arguments=f'"{script_path}"', cwd=work_dir)
-                else:
-                    os.startfile(target_path, cwd=work_dir)
-            except Exception:
-                DETACHED_PROCESS = 0x00000008
-                CREATE_NEW_PROCESS_GROUP = 0x00000200
-                subprocess.Popen(
-                    launch_cmd,
-                    cwd=work_dir,
-                    env=os.environ,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    close_fds=True,
-                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-                )
-            print("[OK] Razer Macro Unlocker is now running in the background.")
-    else:
+    if not ok:
         print("\n[ERROR] Failed to configure autostart in Windows Registry.")
+        return 1
+
+    print("\n[OK] Autostart registered in Windows Registry.")
+
+    # Check if service is already running
+    hwnd_existing = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
+    if hwnd_existing:
+        if not user32.PostMessageW(hwnd_existing, WM_APP_RESCAN, 0, 0):
+            print("[ERROR] Background service is running, but the rescan signal failed.")
+            return 1
+        print("[OK] Background service is running. Rescan requested; unlock result is not yet known.")
+    else:
+        print("Starting background service...")
+        # Sanitize current environment so child process does not reuse the parent's _MEI directory.
+        child_env = get_clean_env()
+
+        try:
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_PROCESS_GROUP = 0x00000200
+            subprocess.Popen(
+                launch_cmd,
+                cwd=work_dir,
+                env=child_env,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+            )
+        except OSError as exc:
+            print(f"[ERROR] Background service could not start: {exc}")
+            return 1
+        for _ in range(20):
+            if user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker"):
+                print("[OK] Background service started. Use --test to check the macro keys.")
+                return 0
+            time.sleep(0.1)
+        print("[ERROR] Background service did not start within two seconds. Autostart remains registered.")
+        return 1
+    return 0
 
 def cli_uninstall():
     ensure_console()
@@ -708,49 +696,81 @@ def cli_uninstall():
     print("Stopping running background service instances...")
     hwnd = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
     if hwnd:
-        user32.PostMessageW(hwnd, 0x0010, 0, 0) # WM_CLOSE
-        print("  [OK] Sent stop signal to RazerUnlocker background service.")
+        stopped = bool(user32.PostMessageW(hwnd, 0x0010, 0, 0)) # WM_CLOSE
+        print("  [OK] Stop requested." if stopped else "  [ERROR] Stop signal failed.")
     else:
         print("  [INFO] No running RazerUnlocker background service found.")
 
     # 2. Remove registry autostart
     removed = remove_autostart_registry()
-    if removed:
+    if removed is True:
         print(f"[OK] Removed Windows Registry autostart entry (HKCU\\{REG_RUN_KEY}\\{REG_APP_NAME}).")
-    else:
+    elif removed is None:
         print(f"[INFO] Registry autostart entry not present.")
+    else:
+        print("[ERROR] Registry autostart entry could not be removed.")
 
-    print("\n[OK] Razer Macro Unlocker uninstalled and stopped.")
+    if (not hwnd or stopped) and removed is not False:
+        print("\n[OK] Uninstall requested. Use --status to confirm the service has stopped.")
+        return 0
+    return 1
 
 def cli_status():
     ensure_console()
     print("=" * 60)
     print("  Universal Razer Macro Key Unlocker - Device Status")
     print("=" * 60)
-    devices = find_all_razer_ctrl_devices()
+    running = bool(user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker"))
+    print(f"Background service: {'running' if running else 'not running'}")
+    print(f"Autostart: {'configured' if get_autostart_registry() else 'not configured'}")
+    path = service_status_path()
+    if path and os.path.isfile(path):
+        try:
+            with open(path, encoding='utf-8') as status_file:
+                print(f"Last scan: {status_file.readline().strip()}")
+        except OSError:
+            print("Last scan: unavailable")
+    try:
+        devices = find_all_razer_ctrl_devices()
+    except OSError as exc:
+        print(f"[ERROR] Device scan failed: {exc}")
+        return 1
     if not devices:
         print("No Razer devices with 91-byte control endpoints found.")
-        return
+        print("Device unlock state cannot be inferred from detection. Use --test to verify key output.")
+        return 0
 
     print(f"Found {len(devices)} Razer control device(s):")
     for path, pid in devices:
         name = RAZER_DEVICES.get(pid, {}).get("name", f"Unknown Razer Device (PID: 0x{pid:04X})")
         print(f"  - {name} (PID: 0x{pid:04X})")
         print(f"    Path: {path}")
+    print("Device unlock state cannot be inferred from detection. Use --test to verify key output.")
+    return 0
 
 def cli_rescan():
     ensure_console()
     print("Sending rescan signal to running background service...")
     hwnd = user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker")
     if hwnd:
-        user32.PostMessageW(hwnd, WM_APP_RESCAN, 0, 0)
-        print("[OK] Rescan signal sent to running Razer Macro Unlocker.")
+        if not user32.PostMessageW(hwnd, WM_APP_RESCAN, 0, 0):
+            print("[ERROR] Rescan signal could not be sent.")
+            return 1
+        print("[OK] Rescan requested. The service will attempt to unlock devices shortly.")
+        return 0
     else:
         print("[INFO] No running background service found. Performing direct unlock...")
-        if unlock_all_keyboards():
-            print("[OK] All connected Razer devices unlocked.")
+        try:
+            unlocked = unlock_all_keyboards()
+        except OSError as exc:
+            print(f"[ERROR] Device scan failed: {exc}")
+            return 1
+        if unlocked:
+            print("[OK] At least one Razer control device accepted the unlock report.")
+            return 0
         else:
-            print("[WARNING] No devices could be unlocked.")
+            print("[ERROR] No Razer control device accepted the unlock report.")
+            return 1
 
 def cli_help():
     ensure_console()
@@ -763,8 +783,8 @@ def cli_help():
     print("  --install, -i      Configure autostart with Windows and start service")
     print("  --uninstall, -u    Remove autostart and stop background service")
     print("  --test, -t         Launch interactive diagnostic key listener")
-    print("  --status, -s       Display detected Razer devices and their status")
-    print("  --rescan, -r       Trigger an immediate re-scan on the running service")
+    print("  --status, -s       Show service, autostart and detected devices")
+    print("  --rescan, -r       Request a rescan on the running service")
     print("  --help, -h         Show this help message")
     print("\nWithout arguments, runs silently in the background as a Windows service.")
 
@@ -773,30 +793,32 @@ _instance_mutex = None
 def main():
     global _instance_mutex
 
-    # Clean up any stale orphaned _MEI directories from previous crashes
-    cleanup_stale_mei_dirs()
-
     # Handle CLI arguments
+    if len(sys.argv) > 2:
+        ensure_console()
+        print("[ERROR] Only one option is supported.")
+        cli_help()
+        sys.exit(2)
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower()
         if cmd in ('--install', '-i', 'install'):
-            cli_install()
-            sys.exit(0)
+            exit_cli(cli_install())
         elif cmd in ('--uninstall', '-u', 'uninstall'):
-            cli_uninstall()
-            sys.exit(0)
+            exit_cli(cli_uninstall())
         elif cmd in ('--test', '-t', 'test'):
-            run_interactive_test()
-            sys.exit(0)
+            exit_cli(run_interactive_test())
         elif cmd in ('--status', '-s', 'status'):
-            cli_status()
-            sys.exit(0)
+            exit_cli(cli_status())
         elif cmd in ('--rescan', '-r', 'rescan'):
-            cli_rescan()
-            sys.exit(0)
+            exit_cli(cli_rescan())
         elif cmd in ('--help', '-h', '/?', 'help'):
             cli_help()
-            sys.exit(0)
+            exit_cli(0)
+        else:
+            ensure_console()
+            print(f"[ERROR] Unknown option: {sys.argv[1]}")
+            cli_help()
+            exit_cli(2)
 
     # Enforce single instance via named Windows Mutex for background service
     _instance_mutex = kernel32.CreateMutexW(None, True, SINGLE_INSTANCE_MUTEX)
