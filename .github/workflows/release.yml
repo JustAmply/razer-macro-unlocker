@@ -38,14 +38,29 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Run Windows API contract tests
+        run: python -m unittest discover -s tests -v
+
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller
+          python -m pip install pyinstaller==6.16.0
 
       - name: Build standalone executable with PyInstaller
         run: |
-          pyinstaller --clean --onefile --noconsole --name RazerMacroUnlocker razer_unlocker.pyw
+          python -m PyInstaller --clean --onefile --noconsole --name RazerMacroUnlocker --exclude-module ssl --exclude-module _ssl --exclude-module hashlib --exclude-module _hashlib razer_unlocker.pyw
+
+      - name: Smoke-test bundled CLI
+        shell: pwsh
+        run: |
+          python scripts/smoke_exe.py dist/RazerMacroUnlocker.exe
+
+      - name: Report bundle size
+        shell: pwsh
+        run: |
+          $size = (Get-Item .\dist\RazerMacroUnlocker.exe).Length
+          "EXE size: $size bytes" | Write-Output
+          "## Bundle size`n`nEXE: $size bytes" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Package release assets
         shell: pwsh

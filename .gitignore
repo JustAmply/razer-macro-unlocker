@@ -10,4 +10,6 @@ env/
 # Build and distribution artifacts
 build/
 dist/
+build-*/
+dist-*/
 *.spec

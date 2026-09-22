@@ -3,6 +3,7 @@
 Unlock dedicated Razer macro keys (**M1–M5**, **M1–M8**, and **Keypad matrices**) across Razer keyboards and keypads as native **F13–F24** hardware keystrokes — completely independent of Razer Synapse.
 
 [![Build and Release](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/release.yml/badge.svg)](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/release.yml)
+[![Tests](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/tests.yml/badge.svg)](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/tests.yml)
 
 ---
 
@@ -170,6 +171,15 @@ All Razer devices share Vendor ID `0x1532`. Unlisted Razer keyboards are dynamic
 ### Option B: Build Standalone .exe Locally
 1. Run **`build_exe.bat`** (requires Python with `pip` or `uv`).
 2. PyInstaller compiles `razer_unlocker.pyw` into `dist\RazerMacroUnlocker.exe`.
+
+Run `python -m unittest discover -s tests -v` on Windows to check the HID,
+service, and CLI contracts. GitHub Actions runs these tests on changes and before
+building a release, then smoke-tests the bundled executable. Physical macro-key
+output still needs a connected device and the interactive `--test` command.
+
+The release build uses Python 3.12 and PyInstaller 6.16.0. Excluding unused
+cryptography modules reduced the executable from 8,549,098 to 6,427,905 bytes
+in a local comparison with those same versions (24.8% smaller).
 
 ---
 
