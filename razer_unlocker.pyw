@@ -295,6 +295,31 @@ def unlock_all_keyboards():
             unlocked += 1
     return unlocked > 0
 
+def service_status_path():
+    base = os.environ.get('LOCALAPPDATA')
+    return os.path.join(base, 'RazerMacroUnlocker', 'status.txt') if base else None
+
+def write_service_status(message):
+    path = service_status_path()
+    if not path:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as status_file:
+            status_file.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {message}\n")
+    except OSError:
+        pass
+
+def service_unlock():
+    try:
+        devices = find_all_razer_ctrl_devices()
+        unlocked = sum(bool(unlock_device(path, pid)) for path, pid in devices)
+        write_service_status(f"Detected {len(devices)} control device(s); unlock report accepted by {unlocked}.")
+        return unlocked > 0
+    except Exception as exc:
+        write_service_status(f"HID scan failed: {exc}")
+        return False
+
 WM_DEVICECHANGE = 0x0219
 WM_POWERBROADCAST = 0x0218
 PBT_APMRESUMEAUTOMATIC = 0x0012
@@ -341,7 +366,10 @@ WM_APP = 0x8000
 WM_APP_RESCAN = WM_APP + 1
 
 TIMER_ID_DEBOUNCE = 1
+TIMER_ID_STARTUP_RETRY = 2
 DEBOUNCE_DELAY_MS = 1000
+STARTUP_RETRY_DELAY_MS = 2000
+_startup_retries_left = 0
 
 WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, WPARAM, LPARAM)
 
@@ -355,9 +383,12 @@ class WNDCLASSW(ctypes.Structure):
     ]
 
 def wnd_proc(hwnd, msg, wparam, lparam):
+    global _startup_retries_left
     # Session unlock or logon: immediate unlock with debounced safety follow-up
     if msg == WM_WTSSESSION_CHANGE and wparam in (WTS_SESSION_UNLOCK, WTS_SESSION_LOGON):
-        unlock_all_keyboards()
+        if service_unlock() and _startup_retries_left:
+            user32.KillTimer(hwnd, TIMER_ID_STARTUP_RETRY)
+            _startup_retries_left = 0
         user32.KillTimer(hwnd, TIMER_ID_DEBOUNCE)
         user32.SetTimer(hwnd, TIMER_ID_DEBOUNCE, DEBOUNCE_DELAY_MS, None)
         return 0
@@ -382,7 +413,15 @@ def wnd_proc(hwnd, msg, wparam, lparam):
 
     if msg == WM_TIMER and wparam == TIMER_ID_DEBOUNCE:
         user32.KillTimer(hwnd, TIMER_ID_DEBOUNCE)
-        unlock_all_keyboards()
+        if service_unlock() and _startup_retries_left:
+            user32.KillTimer(hwnd, TIMER_ID_STARTUP_RETRY)
+            _startup_retries_left = 0
+        return 0
+
+    if msg == WM_TIMER and wparam == TIMER_ID_STARTUP_RETRY:
+        _startup_retries_left -= 1
+        if service_unlock() or _startup_retries_left <= 0:
+            user32.KillTimer(hwnd, TIMER_ID_STARTUP_RETRY)
         return 0
 
     if msg in (0x0010, 0x0002): # WM_CLOSE (0x0010), WM_DESTROY (0x0002)
@@ -780,6 +819,10 @@ def main():
     user32.RegisterClassW(ctypes.byref(wnd_class))
 
     hwnd = user32.CreateWindowExW(0, "RazerUnlockerServiceClass", "RazerUnlocker", 0, 0, 0, 0, 0, None, None, wnd_class.hInstance, None)
+    if not hwnd:
+        error = kernel32.GetLastError()
+        kernel32.CloseHandle(_instance_mutex)
+        raise OSError(error, "Could not create service window")
 
     # Register for HID device notifications (ensures WM_DEVICECHANGE is delivered on USB plug/unplug)
     dev_filter = DEV_BROADCAST_DEVICEINTERFACE_W()
@@ -795,11 +838,12 @@ def main():
     # Register for Display State notifications (Modern Standby / display wake-up)
     h_power_notify = user32.RegisterPowerSettingNotification(hwnd, ctypes.byref(GUID_CONSOLE_DISPLAY_STATE), DEVICE_NOTIFY_WINDOW_HANDLE)
 
-    # Attempt unlock on startup (retry up to 5 times)
-    for _ in range(5):
-        if unlock_all_keyboards():
-            break
-        time.sleep(2.0)
+    # Retry through the message loop so device and shutdown events remain responsive.
+    global _startup_retries_left
+    if not service_unlock():
+        _startup_retries_left = 4
+        if not user32.SetTimer(hwnd, TIMER_ID_STARTUP_RETRY, STARTUP_RETRY_DELAY_MS, None):
+            write_service_status("Could not schedule startup retries.")
 
     # Passive message loop (0% CPU usage)
     msg = wintypes.MSG()
@@ -814,6 +858,9 @@ def main():
         wtsapi32.WTSUnRegisterSessionNotification(hwnd)
     if h_power_notify:
         user32.UnregisterPowerSettingNotification(h_power_notify)
+    user32.KillTimer(hwnd, TIMER_ID_DEBOUNCE)
+    user32.KillTimer(hwnd, TIMER_ID_STARTUP_RETRY)
+    kernel32.CloseHandle(_instance_mutex)
 
 if __name__ == '__main__':
     main()
