@@ -17,16 +17,21 @@ if %ERRORLEVEL% neq 0 (
 )
 
 set "BUILD_EXIT_CODE=0"
-set "BUILD_PYTHON=.venv\Scripts\python.exe"
+set "BUILD_PYTHON=.venv-3.15\Scripts\python.exe"
 
 REM Reuse the project's virtual environment when it exists.
-if exist "%BUILD_PYTHON%" goto python_build
+if exist "%BUILD_PYTHON%" (
+    "%BUILD_PYTHON%" -c "import sys; sys.exit(sys.version_info[:2] != (3, 15))" >nul 2>&1
+    if !ERRORLEVEL! equ 0 goto python_build
+    echo [ERROR] Existing .venv-3.15 does not use Python 3.15.
+    exit /b 1
+)
 
 REM Check for uv first
 where uv >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     echo [INFO] Found uv package manager. Building with uv and PyInstaller...
-    uv run --python 3.12 --with pyinstaller==6.16.0 python -m PyInstaller --onefile --noconsole --clean --name RazerMacroUnlocker --exclude-module ssl --exclude-module _ssl --exclude-module hashlib --exclude-module _hashlib razer_unlocker.pyw
+    uv run --python 3.15 --with pyinstaller==6.22.3 python -m PyInstaller --onefile --noconsole --clean --name RazerMacroUnlocker --exclude-module ssl --exclude-module _ssl --exclude-module hashlib --exclude-module _hashlib razer_unlocker.pyw
     set "BUILD_EXIT_CODE=!ERRORLEVEL!"
     goto check_result
 )
@@ -40,20 +45,26 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-echo [INFO] Creating local Python environment...
-python -m venv .venv
+python -c "import sys; sys.exit(sys.version_info[:2] != (3, 15))" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Failed to create .venv.
+    echo [ERROR] Python 3.15 is required to build the executable.
+    exit /b 1
+)
+
+echo [INFO] Creating local Python 3.15 environment...
+python -m venv .venv-3.15
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Failed to create .venv-3.15.
     pause
     exit /b 1
 )
 
 :python_build
 echo [INFO] Checking PyInstaller in Python environment...
-"%BUILD_PYTHON%" -c "import PyInstaller, sys; sys.exit(PyInstaller.__version__ != '6.16.0')" >nul 2>&1
+"%BUILD_PYTHON%" -c "import PyInstaller, sys; sys.exit(PyInstaller.__version__ != '6.22.3')" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [INFO] PyInstaller not found. Installing via pip...
-    "%BUILD_PYTHON%" -m pip install pyinstaller==6.16.0
+    "%BUILD_PYTHON%" -m pip install pyinstaller==6.22.3
     if %ERRORLEVEL% neq 0 (
         echo [ERROR] Failed to install PyInstaller via pip.
         pause

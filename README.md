@@ -157,7 +157,7 @@ All Razer devices share Vendor ID `0x1532`. Unlisted Razer keyboards are dynamic
 ## Running from Source & Building
 
 ### Option A: Run directly with Python
-1. Ensure Python 3.10+ is installed.
+1. Install Python 3.15 (currently a pre-release).
 2. Launch the script directly:
    ```powershell
    # Run in background
@@ -177,9 +177,11 @@ service, and CLI contracts. GitHub Actions runs these tests on changes and befor
 building a release, then smoke-tests the bundled executable. Physical macro-key
 output still needs a connected device and the interactive `--test` command.
 
-The release build uses Python 3.12 and PyInstaller 6.16.0. Excluding unused
-cryptography modules reduced the executable from 8,549,098 to 6,427,905 bytes
-in a local comparison with those same versions (24.8% smaller).
+The release build uses Python 3.15 and PyInstaller 6.22.3. Until Python 3.15
+has a stable release, GitHub Actions selects its latest available pre-release.
+The local build script uses an isolated `.venv-3.15` when `uv` is unavailable.
+With Python 3.15.0b2 and PyInstaller 6.22.3, excluding unused cryptography
+modules reduced the executable from 10,172,593 to 7,542,490 bytes (25.9%).
 
 ---
 
