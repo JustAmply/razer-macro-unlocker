@@ -677,12 +677,12 @@ def cli_install():
         except OSError as exc:
             print(f"[ERROR] Background service could not start: {exc}")
             return 1
-        for _ in range(20):
+        for _ in range(50):
             if user32.FindWindowW("RazerUnlockerServiceClass", "RazerUnlocker"):
                 print("[OK] Background service started. Use --test to check the macro keys.")
                 return 0
             time.sleep(0.1)
-        print("[ERROR] Background service did not start within two seconds. Autostart remains registered.")
+        print("[ERROR] Background service did not start within five seconds. Autostart remains registered.")
         return 1
     return 0
 

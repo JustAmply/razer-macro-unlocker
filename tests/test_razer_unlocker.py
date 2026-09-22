@@ -243,6 +243,17 @@ class CommandLineTests(unittest.TestCase):
             self.assertEqual(app.cli_install(), 1)
         find_window.assert_not_called()
 
+    def test_install_allows_delayed_one_file_startup(self):
+        with (
+            mock.patch.object(app, "ensure_console"),
+            mock.patch.object(app, "set_autostart_registry", return_value=True),
+            mock.patch.object(app.user32, "FindWindowW", side_effect=[0] * 31 + [123]),
+            mock.patch.object(app.subprocess, "Popen"),
+            mock.patch.object(app.time, "sleep") as sleep,
+        ):
+            self.assertEqual(app.cli_install(), 0)
+        self.assertEqual(sleep.call_count, 30)
+
     def test_status_distinguishes_detection_from_unlock(self):
         with (
             mock.patch.object(app, "ensure_console"),
