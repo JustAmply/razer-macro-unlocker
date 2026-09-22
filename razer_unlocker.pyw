@@ -20,7 +20,7 @@ import winreg
 kernel32 = ctypes.WinDLL('kernel32.dll')
 user32 = ctypes.WinDLL('user32.dll')
 hid = ctypes.WinDLL('hid.dll')
-setupapi = ctypes.WinDLL('setupapi.dll')
+setupapi = ctypes.WinDLL('setupapi.dll', use_last_error=True)
 wtsapi32 = ctypes.WinDLL('wtsapi32.dll')
 
 LRESULT = ctypes.c_longlong
@@ -201,38 +201,48 @@ def find_all_razer_ctrl_devices():
     guid = GUID()
     hid.HidD_GetHidGuid(ctypes.byref(guid))
     hdev = setupapi.SetupDiGetClassDevsW(ctypes.byref(guid), None, None, 0x12)
+    if hdev in (None, 0, -1, 0xFFFFFFFFFFFFFFFF):
+        raise OSError(ctypes.get_last_error(), "Could not enumerate HID devices")
 
     did = DID()
     did.cbSize = ctypes.sizeof(DID)
     index = 0
     devices = []
 
-    while setupapi.SetupDiEnumDeviceInterfaces(hdev, None, ctypes.byref(guid), index, ctypes.byref(did)):
-        index += 1
-        req = wintypes.DWORD()
-        setupapi.SetupDiGetDeviceInterfaceDetailW(hdev, ctypes.byref(did), None, 0, ctypes.byref(req), None)
-        buf = (ctypes.c_byte * req.value)()
-        cbSize = 8 if ctypes.sizeof(ctypes.c_void_p) == 8 else 6
-        ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD))[0] = cbSize
-        if setupapi.SetupDiGetDeviceInterfaceDetailW(hdev, ctypes.byref(did), buf, req.value, None, None):
+    try:
+        while setupapi.SetupDiEnumDeviceInterfaces(hdev, None, ctypes.byref(guid), index, ctypes.byref(did)):
+            index += 1
+            req = wintypes.DWORD()
+            setupapi.SetupDiGetDeviceInterfaceDetailW(hdev, ctypes.byref(did), None, 0, ctypes.byref(req), None)
+            cb_size = 8 if ctypes.sizeof(ctypes.c_void_p) == 8 else 6
+            if req.value < cb_size:
+                raise OSError(ctypes.get_last_error(), "Invalid HID interface detail size")
+            buf = (ctypes.c_byte * req.value)()
+            ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD))[0] = cb_size
+            if not setupapi.SetupDiGetDeviceInterfaceDetailW(hdev, ctypes.byref(did), buf, req.value, None, None):
+                raise OSError(ctypes.get_last_error(), "Could not read HID interface detail")
             path = ctypes.wstring_at(ctypes.addressof(buf) + 4)
             if 'vid_1532' in path.lower():
                 h = kernel32.CreateFileW(path, 0, 3, None, 3, 0, None)
-                if h != -1 and h != 0 and h != 0xFFFFFFFFFFFFFFFF:
+                if h not in (None, 0, -1, 0xFFFFFFFFFFFFFFFF):
                     preparsed = ctypes.c_void_p()
-                    if hid.HidD_GetPreparsedData(h, ctypes.byref(preparsed)):
-                        caps = HIDP_CAPS()
-                        hid.HidP_GetCaps(preparsed, ctypes.byref(caps))
-                        hid.HidD_FreePreparsedData(preparsed)
+                    try:
+                        if hid.HidD_GetPreparsedData(h, ctypes.byref(preparsed)):
+                            try:
+                                caps = HIDP_CAPS()
+                                if hid.HidP_GetCaps(preparsed, ctypes.byref(caps)) >= 0 and caps.FeatureReportByteLength == 91:
+                                    m = re.search(r'pid_([0-9a-fA-F]{4})', path, re.IGNORECASE)
+                                    pid = int(m.group(1), 16) if m else 0
+                                    devices.append((path, pid))
+                            finally:
+                                hid.HidD_FreePreparsedData(preparsed)
+                    finally:
                         kernel32.CloseHandle(h)
-                        if caps.FeatureReportByteLength == 91:
-                            m = re.search(r'pid_([0-9a-fA-F]{4})', path, re.IGNORECASE)
-                            pid = int(m.group(1), 16) if m else 0
-                            devices.append((path, pid))
-                    else:
-                        kernel32.CloseHandle(h)
-
-    setupapi.SetupDiDestroyDeviceInfoList(hdev)
+        error = ctypes.get_last_error()
+        if error != 259:  # ERROR_NO_MORE_ITEMS
+            raise OSError(error, "HID interface enumeration failed")
+    finally:
+        setupapi.SetupDiDestroyDeviceInfoList(hdev)
     return devices
 
 def send_mode_report(h, tx_id, mode):
@@ -264,17 +274,18 @@ def unlock_device(path, pid):
         mode = 0x02
 
     h = kernel32.CreateFileW(path, 0, 3, None, 3, 0, None)
-    if h == -1 or h == 0 or h == 0xFFFFFFFFFFFFFFFF:
+    if h in (None, 0, -1, 0xFFFFFFFFFFFFFFFF):
         return False
 
-    ok = send_mode_report(h, primary_tx_id, mode)
-    if not ok:
-        # If first attempt fails, automatically retry with alternative transaction ID (0x1F <-> 0x00)
-        alt_tx_id = 0x00 if primary_tx_id == 0x1F else 0x1F
-        ok = send_mode_report(h, alt_tx_id, mode)
-
-    kernel32.CloseHandle(h)
-    return ok
+    try:
+        ok = send_mode_report(h, primary_tx_id, mode)
+        if not ok:
+            # If first attempt fails, automatically retry with alternative transaction ID (0x1F <-> 0x00)
+            alt_tx_id = 0x00 if primary_tx_id == 0x1F else 0x1F
+            ok = send_mode_report(h, alt_tx_id, mode)
+        return ok
+    finally:
+        kernel32.CloseHandle(h)
 
 def unlock_all_keyboards():
     devices = find_all_razer_ctrl_devices()
