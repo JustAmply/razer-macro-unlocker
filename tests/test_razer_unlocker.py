@@ -226,6 +226,23 @@ class CommandLineTests(unittest.TestCase):
         ):
             self.assertEqual(app.cli_rescan(), 1)
 
+    def test_uninstall_reports_registry_failure(self):
+        with (
+            mock.patch.object(app, "ensure_console"),
+            mock.patch.object(app.user32, "FindWindowW", return_value=0),
+            mock.patch.object(app, "remove_autostart_registry", return_value=False),
+        ):
+            self.assertEqual(app.cli_uninstall(), 1)
+
+    def test_install_reports_registry_failure_without_starting_service(self):
+        with (
+            mock.patch.object(app, "ensure_console"),
+            mock.patch.object(app, "set_autostart_registry", return_value=False),
+            mock.patch.object(app.user32, "FindWindowW") as find_window,
+        ):
+            self.assertEqual(app.cli_install(), 1)
+        find_window.assert_not_called()
+
     def test_status_distinguishes_detection_from_unlock(self):
         with (
             mock.patch.object(app, "ensure_console"),
@@ -261,6 +278,16 @@ class ServiceTests(unittest.TestCase):
         ):
             self.assertFalse(app.service_unlock())
         self.assertIn("scan failed", write_status.call_args.args[0])
+
+    def test_startup_retry_stops_after_final_attempt(self):
+        app._startup_retries_left = 1
+        with (
+            mock.patch.object(app, "service_unlock", return_value=False),
+            mock.patch.object(app.user32, "KillTimer") as kill_timer,
+        ):
+            self.assertEqual(app.wnd_proc(123, app.WM_TIMER, app.TIMER_ID_STARTUP_RETRY, 0), 0)
+        self.assertEqual(app._startup_retries_left, 0)
+        kill_timer.assert_called_once_with(123, app.TIMER_ID_STARTUP_RETRY)
 
 
 if __name__ == "__main__":
