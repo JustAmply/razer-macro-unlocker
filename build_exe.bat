@@ -17,13 +17,13 @@ if %ERRORLEVEL% neq 0 (
 )
 
 set "BUILD_EXIT_CODE=0"
-set "BUILD_PYTHON=.venv-3.15\Scripts\python.exe"
+set "BUILD_PYTHON=.venv\Scripts\python.exe"
 
 REM Reuse the project's virtual environment when it exists.
 if exist "%BUILD_PYTHON%" (
-    "%BUILD_PYTHON%" -c "import sys; sys.exit(sys.version_info[:2] != (3, 15))" >nul 2>&1
+    "%BUILD_PYTHON%" -c "import sys; sys.exit(sys.version_info[:2] != (3, 14))" >nul 2>&1
     if !ERRORLEVEL! equ 0 goto python_build
-    echo [ERROR] Existing .venv-3.15 does not use Python 3.15.
+    echo [ERROR] Existing .venv does not use Python 3.14.
     exit /b 1
 )
 
@@ -31,7 +31,7 @@ REM Check for uv first
 where uv >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     echo [INFO] Found uv package manager. Building with uv and PyInstaller...
-    uv run --python 3.15 --with pyinstaller==6.22.3 python -m PyInstaller --onefile --noconsole --clean --name RazerMacroUnlocker --exclude-module ssl --exclude-module _ssl --exclude-module hashlib --exclude-module _hashlib razer_unlocker.pyw
+    uv run --Python 3.14 --with pyinstaller==6.22.3 python -m PyInstaller --onefile --noconsole --clean --name RazerMacroUnlocker --exclude-module ssl --exclude-module _ssl --exclude-module hashlib --exclude-module _hashlib razer_unlocker.pyw
     set "BUILD_EXIT_CODE=!ERRORLEVEL!"
     goto check_result
 )
@@ -45,16 +45,16 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-python -c "import sys; sys.exit(sys.version_info[:2] != (3, 15))" >nul 2>&1
+python -c "import sys; sys.exit(sys.version_info[:2] != (3, 14))" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Python 3.15 is required to build the executable.
+    echo [ERROR] Python 3.14 is required to build the executable.
     exit /b 1
 )
 
-echo [INFO] Creating local Python 3.15 environment...
-python -m venv .venv-3.15
+echo [INFO] Creating local Python 3.14 environment...
+python -m venv .venv
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Failed to create .venv-3.15.
+    echo [ERROR] Failed to create .venv.
     pause
     exit /b 1
 )
@@ -96,3 +96,4 @@ if !BUILD_EXIT_CODE! equ 0 (
 echo.
 pause
 exit /b !BUILD_EXIT_CODE!
+
