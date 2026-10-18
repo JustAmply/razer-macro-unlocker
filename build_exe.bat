@@ -21,9 +21,9 @@ set "BUILD_PYTHON=.venv\Scripts\python.exe"
 
 REM Reuse the project's virtual environment when it exists.
 if exist "%BUILD_PYTHON%" (
-    "%BUILD_PYTHON%" -c "import sys; sys.exit(sys.version_info[:2] != (3, 14))" >nul 2>&1
+    "%BUILD_PYTHON%" -c "import sys; sys.exit(sys.version_info[:2] < (3, 14))" >nul 2>&1
     if !ERRORLEVEL! equ 0 goto python_build
-    echo [ERROR] Existing .venv does not use Python 3.14.
+    echo [ERROR] Existing .venv does not use Python >= 3.14.
     exit /b 1
 )
 
@@ -45,9 +45,9 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-python -c "import sys; sys.exit(sys.version_info[:2] != (3, 14))" >nul 2>&1
+python -c "import sys; sys.exit(sys.version_info[:2] < (3, 14))" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Python 3.14 is required to build the executable.
+    echo [ERROR] Python >= 3.14 is required to build the executable.
     exit /b 1
 )
 
