@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "RazerMacroUnlocker.ico"));
         Root.DataContext = model;
         OutputKeyChoice.ItemsSource = BindingViewModel.OutputKeys;
         ActionChoice.ItemsSource = BindingViewModel.Actions;

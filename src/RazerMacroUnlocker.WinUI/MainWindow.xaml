@@ -19,8 +19,12 @@
                         IsSettingsVisible="False" SelectionChanged="Navigation_SelectionChanged"
                         AlwaysShowHeader="False" IsPaneToggleButtonVisible="False">
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="BindingsNav" Content="Keys" Tag="bindings" />
-                <NavigationViewItem Content="Settings" Tag="background" />
+                <NavigationViewItem x:Name="BindingsNav" Content="Keys" Tag="bindings">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE765;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Settings" Tag="background">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.PaneFooter><ProgressRing x:Name="BusyRing" Width="20" Height="20" IsActive="False" Visibility="Collapsed" /></NavigationView.PaneFooter>
             <Grid Margin="24,20,24,24">
@@ -41,23 +45,26 @@
                             </ListView.ItemContainerStyle>
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="vm:BindingViewModel">
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="{Binding InputName}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding Summary}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Border CornerRadius="6" BorderThickness="1" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" Background="{ThemeResource ControlFillColorSecondaryBrush}" Height="38">
+                                            <TextBlock Text="{Binding InputName}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="{Binding Summary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>
                         <Button x:Name="AddButton" Grid.Row="1" Content="Add key" Click="Add_Click" HorizontalAlignment="Stretch" />
                     </Grid>
 
-                    <Grid Grid.Column="1">
+                    <Grid Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
                         <StackPanel x:Name="EmptyEditor" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Visibility="Collapsed">
                             <TextBlock Text="No keys assigned" Style="{ThemeResource SubtitleTextBlockStyle}" />
                             <Button Content="Add key" Click="Add_Click" HorizontalAlignment="Center" />
                         </StackPanel>
-                        <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel x:Name="Editor" MaxWidth="520" HorizontalAlignment="Left" Spacing="24" Margin="8,4,8,12">
+                        <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                            <StackPanel x:Name="Editor" HorizontalAlignment="Stretch" Spacing="24" Margin="24">
                                 <Grid ColumnSpacing="20">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding InputName}" Style="{ThemeResource TitleTextBlockStyle}" VerticalAlignment="Center" />

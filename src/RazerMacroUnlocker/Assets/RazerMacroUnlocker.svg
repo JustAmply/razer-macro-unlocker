@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <!-- Five keys form an ascending staircase: one destination per key. -->
-  <rect x="8" y="8" width="240" height="240" rx="54" fill="#183A52"/>
-  <rect x="40" y="164" width="48" height="44" rx="10" fill="#123047"/>
-  <rect x="96" y="164" width="48" height="44" rx="10" fill="#123047"/>
-  <rect x="96" y="108" width="48" height="44" rx="10" fill="#123047"/>
-  <rect x="152" y="108" width="48" height="44" rx="10" fill="#123047"/>
-  <rect x="152" y="52" width="48" height="44" rx="10" fill="#123047"/>
-  <rect x="40" y="158" width="48" height="44" rx="10" fill="#359EB4"/>
-  <rect x="96" y="158" width="48" height="44" rx="10" fill="#58C4CD"/>
-  <rect x="96" y="102" width="48" height="44" rx="10" fill="#86DADC"/>
-  <rect x="152" y="102" width="48" height="44" rx="10" fill="#BAECE8"/>
-  <rect x="152" y="46" width="48" height="44" rx="10" fill="#F3FFFB"/>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="#080B08"/>
+  <rect x="40" y="164" width="48" height="44" rx="10" fill="#142710"/>
+  <rect x="96" y="164" width="48" height="44" rx="10" fill="#142710"/>
+  <rect x="96" y="108" width="48" height="44" rx="10" fill="#142710"/>
+  <rect x="152" y="108" width="48" height="44" rx="10" fill="#142710"/>
+  <rect x="152" y="52" width="48" height="44" rx="10" fill="#142710"/>
+  <rect x="40" y="158" width="48" height="44" rx="10" fill="#44D62C"/>
+  <rect x="96" y="158" width="48" height="44" rx="10" fill="#44D62C"/>
+  <rect x="96" y="102" width="48" height="44" rx="10" fill="#44D62C"/>
+  <rect x="152" y="102" width="48" height="44" rx="10" fill="#44D62C"/>
+  <rect x="152" y="46" width="48" height="44" rx="10" fill="#44D62C"/>
 </svg>
