@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "RazerMacroUnlocker.ico"));
+        ConfigureTitleBar();
         Root.DataContext = model;
         OutputKeyChoice.ItemsSource = BindingViewModel.OutputKeys;
         ActionChoice.ItemsSource = BindingViewModel.Actions;
@@ -35,6 +36,26 @@ public sealed partial class MainWindow : Window
     }
 
     private BindingViewModel? Selected => BindingList.SelectedItem as BindingViewModel;
+
+    private void ConfigureTitleBar()
+    {
+        var titleBar = AppWindow.TitleBar;
+        var background = Windows.UI.Color.FromArgb(255, 30, 34, 36);
+        var foreground = Windows.UI.Color.FromArgb(255, 245, 245, 245);
+        var muted = Windows.UI.Color.FromArgb(255, 155, 160, 162);
+        titleBar.BackgroundColor = background;
+        titleBar.ForegroundColor = foreground;
+        titleBar.InactiveBackgroundColor = background;
+        titleBar.InactiveForegroundColor = muted;
+        titleBar.ButtonBackgroundColor = background;
+        titleBar.ButtonForegroundColor = foreground;
+        titleBar.ButtonInactiveBackgroundColor = background;
+        titleBar.ButtonInactiveForegroundColor = muted;
+        titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(255, 52, 57, 59);
+        titleBar.ButtonHoverForegroundColor = foreground;
+        titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(255, 64, 69, 71);
+        titleBar.ButtonPressedForegroundColor = foreground;
+    }
 
     private async void Root_Loaded(object sender, RoutedEventArgs e)
     {
