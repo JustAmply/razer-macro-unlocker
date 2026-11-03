@@ -10,6 +10,7 @@ Unlock dedicated Razer macro keys (**M1–M5**, **M1–M8**, and **Keypad matric
 ## Table of Contents
 
 - [Key Highlights](#key-highlights)
+- [Razer Macro Unlocker app](#razer-macro-unlocker-app)
 - [Why F13–F24?](#why-f13f24)
 - [Download & Quick Start](#download--quick-start)
 - [Command-Line Interface (CLI)](#command-line-interface-cli)
@@ -27,6 +28,73 @@ Unlock dedicated Razer macro keys (**M1–M5**, **M1–M8**, and **Keypad matric
 - **Background Reliability:** Automatically detects connected Razer keyboards and keypads, with re-unlock on USB reconnect and system sleep/wake.
 - **0% CPU Usage:** Remains completely idle in the background once devices are unlocked.
 - **Synapse-Free:** No Razer Synapse installation or background telemetry required.
+
+---
+
+## Razer Macro Unlocker app
+
+![RazerMacroUnlocker icon](src/RazerMacroUnlocker/Assets/RazerMacroUnlocker.png)
+
+Assign each M key a shortcut, desktop, app, file, folder, or website. Select a key,
+choose its assignment, and save. The default M1–M5 assignments select desktops 1–5.
+The hardware F13–F24 signals stay internal to the unlocker.
+
+Start the Python unlocker first when using Razer M keys. Closing the settings
+window keeps assignments active. Reopen the app to edit them. **Settings** contains
+optional launch-at-login and tray-icon switches, plus **Quit**.
+
+### Build and run
+
+Requires Windows x64 and the .NET 10 SDK to build. Run:
+
+```powershell
+./scripts/build-razer-app.ps1
+./dist/RazerMacroUnlocker/RazerMacroUnlocker.exe
+```
+
+Or double-click `start_razer-app.bat` after building. Keep the publish folder
+together. The small default build uses the installed .NET 10 Desktop Runtime;
+`./scripts/build-razer-app.ps1 -SelfContained` also bundles the runtime.
+Build output is local; nothing is installed or published by this command.
+
+Settings live in `%LOCALAPPDATA%\Razer Macro Unlocker\settings.json`. Writes use a temporary
+file and replacement. Invalid/unknown configuration is reported and preserved.
+Autostart uses only the current user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Razer Macro Unlocker`
+value and requires no administrator rights. Save after moving the application to
+update an enabled autostart path. Disabling autostart removes that value.
+
+### Design and limitations
+
+The WinUI 3 settings process is disposed when closed. An invisible native
+window receives `WM_HOTKEY` messages through `RegisterHotKey`; there is no polling
+timer, keyboard hook, or game-process injection. The editor exits when closed; the WinForms host retains only a native message window. The tray object
+is created only when enabled. Desktop assignments call the shell directly. Shortcut assignments send one chord
+through Windows SendInput, subject to foreground-app permissions and game rules.
+This design is not an anti-cheat certification.
+Hotkeys are global, so avoid assigning the same keys to actions inside games.
+
+Desktop positions follow Windows' current order. RazerMacroUnlocker never creates,
+removes, or reorders desktops. [VirtualDesktopAccessor](https://github.com/Ciantic/VirtualDesktopAccessor)
+encapsulates the internal shell API and is loaded only into this process. Windows
+updates may require updating the adapter. The download is release-pinned and
+SHA-256 verified by `scripts/setup-razer-app.ps1`; its license ships with the app.
+Errors remain visible in settings and optionally appear as tray notifications.
+
+`RazerMacroUnlocker.Core` owns settings, validation, hotkey transactions, and action dispatch;
+The background host owns native registration, desktop access, and autostart; `RazerMacroUnlocker.WinUI` edits a draft through a same-user named pipe. To add an action, extend `ActionKind`, validation,
+the dispatcher, and its editor fields. No plugin runtime or background service is
+needed. The icon source is SVG; regenerate ICO/PNG with
+`scripts/create-razer-app-icon.ps1`.
+
+```powershell
+dotnet run --project tests/RazerMacroUnlocker.Tests -c Release
+# Optional, run in an interactive Windows session:
+dotnet run --project tests/RazerMacroUnlocker.Tests -c Release -- --integration
+```
+
+The integration mode reads the actual desktop state and briefly registers/releases
+Ctrl+Alt+Shift+F24 without switching desktops. Physical M-key delivery, game
+compatibility, and login behavior need an interactive check.
 
 ---
 
@@ -192,7 +260,7 @@ To test device detection and see your keystrokes live:
 - An interactive console opens, lists detected devices, unlocks them, and logs all incoming keystrokes in real time. Press `Escape` to close the test.
 
 The background service writes its latest scan summary to
-`%LOCALAPPDATA%\RazerMacroUnlocker\status.txt`. This reports whether an HID feature report
+`%LOCALAPPDATA%\Razer Macro Unlocker\status.txt`. This reports whether an HID feature report
 was accepted; the interactive key test is still needed to confirm actual key output.
 
 ---
