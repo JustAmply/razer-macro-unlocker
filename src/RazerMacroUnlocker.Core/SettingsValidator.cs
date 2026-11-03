@@ -17,8 +17,8 @@ public static class SettingsValidator
             ValidateBinding(binding);
             if (binding.Enabled && !keys.Add((binding.KeyCode, binding.Modifiers)))
                 throw new InvalidOperationException($"{binding.Label}: This key combination is assigned more than once.");
-            if (binding.Enabled && binding.Action == ActionKind.Shortcut
-                && settings.Bindings.Any(input => input is { Enabled: true } && input.KeyCode == binding.OutputKeyCode
+            if (binding.Enabled && binding.Action == ActionKind.Shortcut && !binding.IsPassthrough
+                && settings.Bindings.Any(input => input is { Enabled: true, IsPassthrough: false } && input.KeyCode == binding.OutputKeyCode
                     && input.Modifiers == binding.OutputModifiers))
                 throw new InvalidOperationException($"{binding.Label}: A shortcut cannot trigger another configured input key.");
         }
@@ -47,8 +47,6 @@ public static class SettingsValidator
                 throw new InvalidOperationException("Enter a complete https:// or http:// address.");
             case ActionKind.Shortcut:
                 ValidateShortcut(binding.OutputKeyCode, binding.OutputModifiers);
-                if (binding.KeyCode == binding.OutputKeyCode && binding.Modifiers == binding.OutputModifiers)
-                    throw new InvalidOperationException("A shortcut cannot trigger its own input key.");
                 break;
         }
     }
@@ -58,8 +56,8 @@ public static class SettingsValidator
         if ((modifiers & ~15) != 0)
             throw new InvalidOperationException("Invalid shortcut modifier.");
         if (keyCode is not (>= 0x30 and <= 0x39) and not (>= 0x41 and <= 0x5A)
-            and not (>= 0x70 and <= 0x7B) and not (>= 0x21 and <= 0x28)
+            and not (>= 0x70 and <= 0x87) and not (>= 0x21 and <= 0x28)
             and not (0x08 or 0x09 or 0x0D or 0x1B or 0x20 or 0x2D or 0x2E))
-            throw new InvalidOperationException("Choose a letter, digit, F1–F12, or navigation key. Macro keys cannot be shortcut outputs.");
+            throw new InvalidOperationException("Choose a letter, digit, F1–F24, or navigation key.");
     }
 }

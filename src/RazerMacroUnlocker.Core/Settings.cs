@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace RazerMacroUnlocker.Core;
 
 public enum ActionKind { Desktop, OpenPath, OpenUrl, Shortcut }
@@ -15,6 +17,9 @@ public sealed record HotkeyBinding
     public string Arguments { get; init; } = "";
     public int OutputKeyCode { get; init; } = 0x41;
     public int OutputModifiers { get; init; } = 2;
+    [JsonIgnore]
+    public bool IsPassthrough => Action == ActionKind.Shortcut
+        && KeyCode == OutputKeyCode && Modifiers == OutputModifiers;
 }
 
 public sealed record AppSettings
@@ -23,7 +28,11 @@ public sealed record AppSettings
     public bool StartWithWindows { get; init; }
     public bool ShowTrayIcon { get; init; }
     public List<HotkeyBinding> Bindings { get; init; } = Enumerable.Range(1, 5)
-        .Select(i => new HotkeyBinding { Label = $"M{i}", KeyCode = 0x7B + i, Desktop = i }).ToList();
+        .Select(i => new HotkeyBinding
+        {
+            Label = $"M{i}", KeyCode = 0x7B + i, Desktop = i,
+            Action = ActionKind.Shortcut, OutputKeyCode = 0x7B + i, OutputModifiers = 0
+        }).ToList();
 
     public AppSettings Copy() => this with { Bindings = Bindings.Select(b => b with { }).ToList() };
 }

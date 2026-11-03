@@ -39,6 +39,7 @@ public sealed class ActionDispatcher(IDesktopService desktops, IShortcutService 
                 Process.Start(new ProcessStartInfo(binding.Target) { UseShellExecute = true });
                 return $"{binding.Label} → Website opened";
             case ActionKind.Shortcut:
+                if (binding.IsPassthrough) return $"Native F{binding.KeyCode - 0x6F}";
                 shortcuts.Send(binding.OutputKeyCode, binding.OutputModifiers);
                 return $"{binding.Label} → Shortcut sent";
             default:

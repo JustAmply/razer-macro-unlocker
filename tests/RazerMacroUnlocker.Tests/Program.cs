@@ -29,7 +29,9 @@ internal static class Program
             ("Disabled actions never invoke their target", DisabledDispatch),
             ("Shortcut actions dispatch the configured chord", ShortcutDispatch),
             ("Disabled shortcuts do not send keys", DisabledShortcutDispatch),
-            ("Macro outputs and recursive shortcuts are rejected", ShortcutRecursion),
+            ("Remapped shortcuts cannot trigger intercepted inputs", ShortcutRecursion),
+            ("Native macro defaults do not register or synthesize input", NativeMacroDefaults),
+            ("F24 outputs and native pass-through targets are supported", ExtendedShortcutOutputs),
             ("Shortcut settings round-trip and legacy defaults survive", ShortcutPersistence),
             ("Shortcut inputs match the x64 ABI and reverse release order", ShortcutInputLayout),
             ("IPC requests run on the owning thread", RuntimeServerTests.RequestRunsOnOwnerThread),
@@ -168,7 +170,7 @@ internal static class Program
     {
         var backend = new FakeBackend();
         using var registry = new HotkeyRegistry(backend);
-        var original = new AppSettings().Bindings.Take(2).ToArray();
+        var original = new AppSettings().Bindings.Take(2).Select(binding => binding with { Action = ActionKind.Desktop }).ToArray();
         registry.Apply(original);
         backend.FailWhen = key => key == 0x87;
         Throws<InvalidOperationException>(() => registry.Apply(
@@ -185,7 +187,7 @@ internal static class Program
     {
         var backend = new FakeBackend();
         using var registry = new HotkeyRegistry(backend);
-        registry.Apply(new AppSettings().Bindings.Take(2));
+        registry.Apply(new AppSettings().Bindings.Take(2).Select(binding => binding with { Action = ActionKind.Desktop }));
         backend.FailWhen = key => key is 0x87 or 0x7D;
         var error = Throws<AggregateException>(() => registry.Apply(
             [new() { KeyCode = 0x86 }, new() { KeyCode = 0x87 }]));
@@ -198,7 +200,7 @@ internal static class Program
     {
         var backend = new FakeBackend();
         var registry = new HotkeyRegistry(backend);
-        registry.Apply(new AppSettings().Bindings);
+        registry.Apply(new AppSettings().Bindings.Select(binding => binding with { Action = ActionKind.Desktop }));
         var replacement = new HotkeyBinding { KeyCode = 0x87 };
         registry.Apply([replacement, new() { KeyCode = 0x86, Enabled = false }]);
         Equal(1, registry.Count);
@@ -246,14 +248,14 @@ internal static class Program
     private static void ShortcutRecursion()
     {
         for (var key = 0x7C; key <= 0x87; key++)
-            Throws<InvalidOperationException>(() => SettingsValidator.ValidateShortcut(key, 0));
+            SettingsValidator.ValidateShortcut(key, 0);
         Throws<InvalidOperationException>(() => SettingsValidator.ValidateShortcut(0x41, 16));
         Throws<InvalidOperationException>(() => SettingsValidator.ValidateShortcut(0x10, 0));
-        Throws<InvalidOperationException>(() => SettingsValidator.ValidateBinding(new HotkeyBinding
+        SettingsValidator.ValidateBinding(new HotkeyBinding
         {
             KeyCode = 0x70, Modifiers = 2, Action = ActionKind.Shortcut,
             OutputKeyCode = 0x70, OutputModifiers = 2
-        }));
+        });
         Throws<InvalidOperationException>(() => SettingsValidator.Validate(new AppSettings
         {
             Bindings =
@@ -261,6 +263,52 @@ internal static class Program
                 new() { KeyCode = 0x70, Modifiers = 2 },
                 new() { Action = ActionKind.Shortcut, OutputKeyCode = 0x70, OutputModifiers = 2 }
             ]
+        }));
+    }
+
+    private static void NativeMacroDefaults()
+    {
+        var settings = new AppSettings();
+        SettingsValidator.Validate(settings);
+        SequenceEqual(Enumerable.Range(0x7C, 5), settings.Bindings.Select(binding => binding.OutputKeyCode));
+        Assert(settings.Bindings.All(binding => binding.IsPassthrough), "Defaults must preserve hardware signals.");
+        var backend = new FakeBackend();
+        using var registry = new HotkeyRegistry(backend);
+        registry.Apply(settings.Bindings);
+        Equal(0, registry.Count);
+        Equal(0, backend.Active.Count);
+        var shortcuts = new FakeShortcuts();
+        var dispatcher = new ActionDispatcher(new FakeDesktops(), shortcuts);
+        Equal("Native F13", dispatcher.Execute(settings.Bindings[0]));
+        Equal(0, shortcuts.Sent.Count);
+        var json = JsonSerializer.Serialize(settings);
+        Assert(!json.Contains("IsPassthrough"), "Derived pass-through state must not be persisted.");
+    }
+
+    private static void ExtendedShortcutOutputs()
+    {
+        var nativeTarget = new HotkeyBinding
+        {
+            KeyCode = 0x7D, Action = ActionKind.Shortcut,
+            OutputKeyCode = 0x7D, OutputModifiers = 0
+        };
+        var remapped = new HotkeyBinding
+        {
+            Action = ActionKind.Shortcut, OutputKeyCode = 0x7D, OutputModifiers = 0
+        };
+        SettingsValidator.Validate(new AppSettings { Bindings = [remapped, nativeTarget] });
+        var backend = new FakeBackend();
+        using var registry = new HotkeyRegistry(backend);
+        registry.Apply([remapped, nativeTarget]);
+        Equal(1, registry.Count);
+        Equal(remapped, registry.Find(1));
+        var shortcuts = new FakeShortcuts();
+        var dispatcher = new ActionDispatcher(new FakeDesktops(), shortcuts);
+        dispatcher.Execute(remapped with { OutputKeyCode = 0x87 });
+        SequenceEqual(new[] { (0x87, 0) }, shortcuts.Sent);
+        Throws<InvalidOperationException>(() => SettingsValidator.Validate(new AppSettings
+        {
+            Bindings = [remapped, nativeTarget with { OutputKeyCode = 0x7C }]
         }));
     }
 

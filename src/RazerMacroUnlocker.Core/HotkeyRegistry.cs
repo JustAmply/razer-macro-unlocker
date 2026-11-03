@@ -35,7 +35,8 @@ public sealed class HotkeyRegistry(IHotkeyBackend backend) : IDisposable
 
     private void Register(IEnumerable<HotkeyBinding> bindings)
     {
-        foreach (var binding in bindings.Where(b => b.Enabled))
+        // Identical input/output assignments preserve the original hardware signal.
+        foreach (var binding in bindings.Where(b => b.Enabled && !b.IsPassthrough))
         {
             var id = active.Count + 1;
             backend.Register(id, binding.KeyCode, binding.Modifiers);
