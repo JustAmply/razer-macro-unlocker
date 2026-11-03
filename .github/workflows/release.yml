@@ -31,13 +31,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.15'
           allow-prereleases: true
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
 
       - name: Run Windows API contract tests
         run: python -m unittest discover -s tests -v
@@ -56,6 +61,17 @@ jobs:
         run: |
           python scripts/smoke_exe.py dist/RazerMacroUnlocker.exe
 
+      - name: Download verified desktop adapter
+        shell: pwsh
+        run: ./scripts/setup-razer-app.ps1
+
+      - name: Run application regression tests
+        run: dotnet run --project tests/RazerMacroUnlocker.Tests -c Release
+
+      - name: Build self-contained WinUI application
+        shell: pwsh
+        run: ./scripts/build-razer-app.ps1 -SelfContained
+
       - name: Report bundle size
         shell: pwsh
         run: |
@@ -65,9 +81,17 @@ jobs:
 
       - name: Package release assets
         shell: pwsh
+        env:
+          REQUESTED_TAG: ${{ inputs.tag_name }}
+          REF_TAG: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag_name }}' } else { '${{ github.ref_name }}' }
+          $tag = if ($env:EVENT_NAME -eq 'workflow_dispatch') { $env:REQUESTED_TAG } else { $env:REF_TAG }
+          if ([string]::IsNullOrWhiteSpace($tag) -or $tag.IndexOfAny([IO.Path]::GetInvalidFileNameChars()) -ge 0) {
+            throw 'The release tag must be a valid file-name component.'
+          }
           $zipName = "RazerMacroUnlocker-$tag-windows-x64.zip"
+          $appZipName = "RazerMacroUnlocker-App-$tag-windows-x64.zip"
           
           New-Item -ItemType Directory -Path "release_bundle" -Force | Out-Null
           Copy-Item "dist\RazerMacroUnlocker.exe" -Destination "release_bundle\"
@@ -77,12 +101,17 @@ jobs:
           Copy-Item "README.md" -Destination "release_bundle\"
           
           Compress-Archive -Path "release_bundle\*" -DestinationPath $zipName -Force
+
+          # Keep the editor and its private host together, separate from the legacy EXE.
+          Copy-Item "README.md" -Destination "dist\RazerMacroUnlocker\README.md"
+          Compress-Archive -Path "dist\RazerMacroUnlocker\*" -DestinationPath $appZipName -Force
           
           "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "APP_ZIP_NAME=$appZipName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: ${{ inputs.release_name != '' && inputs.release_name || env.RELEASE_TAG }}
@@ -92,3 +121,4 @@ jobs:
           files: |
             dist/RazerMacroUnlocker.exe
             ${{ env.ZIP_NAME }}
+            ${{ env.APP_ZIP_NAME }}
