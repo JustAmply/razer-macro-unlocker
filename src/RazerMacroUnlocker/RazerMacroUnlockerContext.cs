@@ -48,7 +48,6 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
         catch (Exception error)
         {
             SetStatus(error.Message);
-            background = false;
         }
         var synchronization = new WindowsFormsSynchronizationContext();
         SynchronizationContext.SetSynchronizationContext(synchronization);

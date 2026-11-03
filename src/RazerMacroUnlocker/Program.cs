@@ -9,6 +9,7 @@ internal static class Program
     private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        var background = args.Contains("--background");
         if (args.Any(arg => arg is not ("--background" or "--quit")))
         {
             MessageBox.Show("RazerMacroUnlocker.exe [--background | --quit]\n\nRun without arguments to open settings.", "Razer Macro Unlocker");
@@ -27,7 +28,7 @@ internal static class Program
             }
             if (handle == 0)
             {
-                MessageBox.Show("Razer Macro Unlocker is starting. Please try again.", "Razer Macro Unlocker");
+                ReportStartupFailure(new InvalidOperationException("Razer Macro Unlocker is starting. Please try again."), background);
                 return;
             }
             if (!args.Contains("--background"))
@@ -48,9 +49,21 @@ internal static class Program
         }
         catch (Exception error)
         {
-            MessageBox.Show($"Razer Macro Unlocker could not start.\n\n{error.Message}\n\n" +
-                $"Settings: {RazerMacroUnlockerContext.SettingsPath}", "Razer Macro Unlocker", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ReportStartupFailure(error, background);
         }
         finally { mutex.ReleaseMutex(); }
+    }
+
+    private static void ReportStartupFailure(Exception error, bool background)
+    {
+        if (background)
+        {
+            var directory = Path.GetDirectoryName(RazerMacroUnlockerContext.SettingsPath)!;
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(Path.Combine(directory, "background-error.txt"), error.ToString());
+            return;
+        }
+        MessageBox.Show($"Razer Macro Unlocker could not start.\n\n{error.Message}\n\n" +
+            $"Settings: {RazerMacroUnlockerContext.SettingsPath}", "Razer Macro Unlocker", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 }

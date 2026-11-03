@@ -62,6 +62,12 @@ Open **Settings** to control the whole application:
 Click **Save** after changing a setting. Closing the window keeps the unlocker and
 assignments running. Run `RazerMacroUnlocker.exe` again to reopen settings.
 
+Login startup uses one current-user Run entry pointing to
+`runtime/RazerMacroUnlocker.Host.exe --background`. It never opens the editor,
+including when an assignment cannot be registered. Open the app manually to see
+assignment errors. Fatal background startup errors are written to
+`%LOCALAPPDATA%\Razer Macro Unlocker\background-error.txt`.
+
 Keep the app in its permanent folder before enabling login startup. If you move
 it later, open the new copy and save the startup setting again.
 
