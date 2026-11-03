@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Assets\RazerMacroUnlocker.ico</ApplicationIcon>
+    <AssemblyName>RazerMacroUnlocker.Host</AssemblyName>
+    <Version>0.1.0</Version>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="RazerMacroUnlocker.Tests" />
+    <ProjectReference Include="..\RazerMacroUnlocker.Core\RazerMacroUnlocker.Core.csproj" />
+    <None Include="..\..\vendor\VirtualDesktopAccessor\VirtualDesktopAccessor.dll" Link="VirtualDesktopAccessor.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\vendor\VirtualDesktopAccessor\LICENSE.txt" Link="LICENSE-VirtualDesktopAccessor.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

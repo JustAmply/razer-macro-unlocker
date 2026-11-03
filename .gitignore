@@ -14,3 +14,6 @@ dist/
 build-*/
 dist-*/
 *.spec
+**/bin/
+**/obj/
+vendor/VirtualDesktopAccessor/*.dll
