@@ -14,6 +14,7 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
     private readonly ActionDispatcher dispatcher = new(new DesktopService(), new ShortcutService());
     private readonly Icon icon;
     private readonly RuntimeServer server;
+    private readonly HardwareUnlocker keyboard = new();
     private NotifyIcon? tray;
     private AppSettings settings;
     private string status = "Ready";
@@ -24,6 +25,9 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
     internal RazerMacroUnlockerContext(string title, bool background)
     {
         settings = store.Load();
+        var startup = StartupRegistration.Capture();
+        settings = settings with { StartWithWindows = startup.App is not null || startup.Legacy is not null };
+        keyboard.Start();
         icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? (Icon)SystemIcons.Application.Clone();
         window = new HotkeyWindow(title);
         hotkeys = new HotkeyRegistry(window);
@@ -39,7 +43,7 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
         try
         {
             hotkeys.Apply(settings.Bindings);
-            SetStatus($"{hotkeys.Count} keys active");
+            SetStatus($"{settings.Bindings.Count(b => b.Enabled)} assignments enabled");
         }
         catch (Exception error)
         {
@@ -57,6 +61,7 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
     {
         SettingsValidator.Validate(candidate);
         var previous = settings;
+        var previousStartup = StartupRegistration.Capture();
         hotkeys.Apply(candidate.Bindings);
         try
         {
@@ -69,7 +74,7 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
             var errors = new List<Exception> { saveError };
             try { hotkeys.Apply(previous.Bindings); }
             catch (Exception error) { errors.Add(error); }
-            try { StartupRegistration.Set(previous.StartWithWindows); }
+            try { StartupRegistration.Restore(previousStartup); }
             catch (Exception error) { errors.Add(error); }
             if (errors.Count > 1)
                 throw new AggregateException("Could not save or restore settings.", errors);
@@ -77,7 +82,7 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
         }
         settings = candidate.Copy();
         UpdateTray();
-        SetStatus($"Saved · {hotkeys.Count} keys active");
+        SetStatus($"Saved · {settings.Bindings.Count(b => b.Enabled)} assignments enabled");
     }
 
     public void Test(HotkeyBinding binding)
@@ -99,10 +104,13 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
     {
         switch (request.Command)
         {
-            case "get": return new(true, Status, Settings);
+            case "get": return new(true, Status, Settings, keyboard.IsRunning);
             case "save" when request.Settings is not null:
                 Save(request.Settings);
-                return new(true, Status, Settings);
+                return new(true, Status, Settings, keyboard.IsRunning);
+            case "reconnect":
+                keyboard.Start();
+                return new(true, "Keyboard reconnection requested.", HardwareRunning: keyboard.IsRunning);
             case "test" when request.Binding is not null:
                 SetStatus(dispatcher.Execute(request.Binding));
                 return new(true, Status);
@@ -148,6 +156,7 @@ internal sealed class RazerMacroUnlockerContext : ApplicationContext
         if (disposing)
         {
             server.Dispose();
+            keyboard.Dispose();
             tray?.ContextMenuStrip?.Dispose();
             tray?.Dispose();
             hotkeys.Dispose();

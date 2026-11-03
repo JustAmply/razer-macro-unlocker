@@ -55,6 +55,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
             model.Load(response.Settings);
+            HardwareStatus.Text = response.HardwareRunning ? "Keyboard unlocker running" : "Keyboard unlocker starting";
             BindingList.SelectedIndex = model.Bindings.Count > 0 ? 0 : -1;
             loaded = true;
             Feedback.IsOpen = false;
@@ -63,12 +64,21 @@ public sealed partial class MainWindow : Window
         finally { SetBusy(false); }
     }
 
-    private void Navigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    private async void Navigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (BindingsPage is null || BackgroundPage is null) return;
         bool bindings = (args.SelectedItem as NavigationViewItem)?.Tag as string != "background";
         BindingsPage.Visibility = bindings ? Visibility.Visible : Visibility.Collapsed;
         BackgroundPage.Visibility = bindings ? Visibility.Collapsed : Visibility.Visible;
+        if (!bindings && loaded)
+        {
+            try
+            {
+                var response = await client.GetAsync();
+                HardwareStatus.Text = response.HardwareRunning ? "Keyboard unlocker running" : "Keyboard unlocker starting";
+            }
+            catch (Exception error) { HardwareStatus.Text = error.Message; }
+        }
     }
 
     private void BindingList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -144,6 +154,20 @@ public sealed partial class MainWindow : Window
         {
             var response = await client.TestAsync(selected.ToBinding());
             ShowFeedback(response.Message, response.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        }
+        catch (Exception error) { ShowFeedback(error.Message, InfoBarSeverity.Error); }
+        finally { SetBusy(false); }
+    }
+
+    private async void Reconnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy) return;
+        SetBusy(true);
+        try
+        {
+            var response = await client.ReconnectAsync();
+            HardwareStatus.Text = !response.Success ? response.Message
+                : response.HardwareRunning ? "Keyboard unlocker running" : "Keyboard reconnection requested";
         }
         catch (Exception error) { ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally { SetBusy(false); }

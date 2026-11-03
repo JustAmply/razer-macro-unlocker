@@ -26,6 +26,7 @@ public sealed class RuntimeClient
     public Task<RuntimeResponse> SaveAsync(AppSettings settings) => SendAsync(new("save", settings));
     public Task<RuntimeResponse> TestAsync(HotkeyBinding binding) => SendAsync(new("test", Binding: binding));
     public Task<RuntimeResponse> QuitAsync() => SendAsync(new("quit"));
+    public Task<RuntimeResponse> ReconnectAsync() => SendAsync(new("reconnect"));
 
     private static async Task<RuntimeResponse> SendAsync(RuntimeRequest request)
     {

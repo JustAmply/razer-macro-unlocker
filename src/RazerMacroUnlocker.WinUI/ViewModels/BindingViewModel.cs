@@ -24,6 +24,8 @@ public sealed class BindingViewModel : INotifyPropertyChanged
 
     public BindingViewModel(HotkeyBinding binding)
     {
+        if (binding.Action != ActionKind.Shortcut)
+            binding = binding with { OutputKeyCode = binding.KeyCode, OutputModifiers = binding.Modifiers };
         original = binding;
         enabled = binding.Enabled;
         action = binding.Action;
@@ -40,7 +42,8 @@ public sealed class BindingViewModel : INotifyPropertyChanged
 
     public static IReadOnlyList<string> Actions { get; } = ["Keyboard shortcut", "Desktop", "App or folder", "Website"];
     public static IReadOnlyList<OutputKeyOption> OutputKeys { get; } =
-        Enumerable.Range('A', 26).Select(code => new OutputKeyOption(code, ((char)code).ToString()))
+        Enumerable.Range(13, 12).Select(number => new OutputKeyOption(0x6F + number, $"F{number}"))
+            .Concat(Enumerable.Range('A', 26).Select(code => new OutputKeyOption(code, ((char)code).ToString())))
             .Concat(Enumerable.Range('0', 10).Select(code => new OutputKeyOption(code, ((char)code).ToString())))
             .Concat(Enumerable.Range(1, 12).Select(number => new OutputKeyOption(0x6F + number, $"F{number}")))
             .Concat(new[]

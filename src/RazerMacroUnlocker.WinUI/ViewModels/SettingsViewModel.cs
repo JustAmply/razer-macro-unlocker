@@ -49,7 +49,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         if (next == 0) throw new InvalidOperationException("All 12 macro keys are assigned.");
         var item = new BindingViewModel(new HotkeyBinding
         {
-            Label = $"M{next - 12}", KeyCode = 0x6F + next, Action = (ActionKind)3
+            Label = $"M{next - 12}", KeyCode = 0x6F + next, Action = ActionKind.Shortcut,
+            OutputKeyCode = 0x6F + next, OutputModifiers = 0
         });
         item.Edited += MarkDirty;
         Bindings.Add(item);

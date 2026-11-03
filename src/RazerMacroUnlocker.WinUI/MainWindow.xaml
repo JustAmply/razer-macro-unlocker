@@ -100,6 +100,10 @@
                 <ScrollViewer x:Name="BackgroundPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="640" HorizontalAlignment="Left" Spacing="28" Margin="8,4,8,12">
                         <TextBlock Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" />
+                        <StackPanel Spacing="10">
+                            <TextBlock x:Name="HardwareStatus" Text="Connecting keyboard…" TextWrapping="Wrap" />
+                            <Button Content="Reconnect keyboard" Click="Reconnect_Click" />
+                        </StackPanel>
                         <Grid ColumnSpacing="32"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                             <TextBlock Text="Launch at login" VerticalAlignment="Center" />
                             <ToggleSwitch Grid.Column="1" IsOn="{Binding StartWithWindows, Mode=TwoWay}" OffContent="Off" OnContent="On" AutomationProperties.Name="Launch at login" />
@@ -108,7 +112,9 @@
                             <TextBlock Text="Show tray icon" VerticalAlignment="Center" />
                             <ToggleSwitch Grid.Column="1" IsOn="{Binding ShowTrayIcon, Mode=TwoWay}" OffContent="Off" OnContent="On" AutomationProperties.Name="Show tray icon" />
                         </Grid>
-                        <TextBlock Text="Keys stay active when this window closes. Reopen the app to edit them." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="Assign native F13–F24 keys in your game or app. Choose another action on Keys, then save." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="Launch at login starts the unlocker and your assignments. Closing this window keeps them running." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <HyperlinkButton Content="GitHub" NavigateUri="https://github.com/JustAmply/razer-macro-unlocker" Padding="0" />
                         <Button Content="Stop background app" Click="Quit_Click" />
                     </StackPanel>
                 </ScrollViewer>

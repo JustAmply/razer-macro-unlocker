@@ -1,194 +1,160 @@
-# Universal Razer Macro Key Unlocker
+# Razer Macro Unlocker
 
-Unlock dedicated Razer macro keys (**M1–M5**, **M1–M8**, and **Keypad matrices**) across Razer keyboards and keypads as native **F13–F24** hardware keystrokes — completely independent of Razer Synapse.
+Use your Razer macro keys without Synapse. Keep their native F13–F24 output or
+assign a shortcut, desktop, app, file, folder, or website in one Windows app.
 
-[![Build and Release](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/release.yml/badge.svg)](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/release.yml)
 [![Tests](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/tests.yml/badge.svg)](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/tests.yml)
+[![Build and Release](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/release.yml/badge.svg)](https://github.com/JustAmply/razer-macro-unlocker/actions/workflows/release.yml)
 
----
+## Get started
 
-## Table of Contents
+1. Open [Releases](https://github.com/JustAmply/razer-macro-unlocker/releases) and
+   download **`RazerMacroUnlocker-App-<version>-windows-x64.zip`**.
+2. Extract the entire ZIP to a permanent folder. Keep the files together.
+3. Run **`RazerMacroUnlocker.exe`**. It starts the keyboard unlocker automatically.
+4. Press an M key in your game's or app's keyboard-binding settings to assign it.
+   By default, **M1 = F13**, **M2 = F14**, through **M5 = F17**.
 
-- [Key Highlights](#key-highlights)
-- [Razer Macro Unlocker app](#razer-macro-unlocker-app)
-- [Why F13–F24?](#why-f13f24)
-- [Download & Quick Start](#download--quick-start)
-- [Command-Line Interface (CLI)](#command-line-interface-cli)
-- [Key Mapping](#key-mapping)
-- [Supported Devices](#supported-devices)
-- [Running from Source & Building](#running-from-source--building)
-- [How It Works & Anti-Cheat Safety](#how-it-works--anti-cheat-safety)
+The app package includes the unlocker. You do not need Python, a separate
+unlocker process to start manually, or administrator rights. The self-contained
+release includes the .NET runtime. Windows x64 is required.
 
----
+Close Razer Synapse if it changes the keys back: Synapse can overwrite the keyboard
+mode while this app is running.
 
-## Key Highlights
+## Assign your keys
 
-- **Anti-Cheat Safe:** Uses exclusively the standard Windows USB HID driver (`hidusb.sys`). No kernel drivers, no Interception drivers, and no DLL injection.
-- **Genuine Hardware Signals:** Switches the keyboard controller into Legacy Mode via a standard USB HID Feature Report, causing the keyboard to emit native hardware scancodes.
-- **Background Reliability:** Automatically detects connected Razer keyboards and keypads, with re-unlock on USB reconnect and system sleep/wake.
-- **0% CPU Usage:** Remains completely idle in the background once devices are unlocked.
-- **Synapse-Free:** No Razer Synapse installation or background telemetry required.
+On **Keys**, select an M key, choose an **Action**, set its target, and click **Save**.
+Changes remain a draft until saved. Existing saved assignments stay active while
+you edit.
 
----
+| Action | What to choose |
+| --- | --- |
+| **Keyboard shortcut** | A key, optionally with Ctrl, Alt, Shift, or Win. F13–F24 are listed first. |
+| **Desktop** | The position of an existing Windows virtual desktop. |
+| **App or folder** | A program, file, or folder; programs can have optional arguments. |
+| **Website** | A complete HTTP or HTTPS address. |
 
-## Razer Macro Unlocker app
+A shortcut matching a key's original signal, such as M1 → F13, passes the native
+hardware event directly to the active application. Other shortcut assignments
+send a single key combination. The app rejects assignments that would trigger
+another configured macro action recursively.
 
-![RazerMacroUnlocker icon](src/RazerMacroUnlocker/Assets/RazerMacroUnlocker.png)
+**Test** runs an action once. It does not save the assignment. **Add key** exposes
+another macro-key position for devices with more keys. It does not add physical
+keys to your keyboard.
 
-Assign each M key a shortcut, desktop, app, file, folder, or website. Select a key,
-choose its assignment, and save. The default M1–M5 assignments select desktops 1–5.
-The hardware F13–F24 signals stay internal to the unlocker.
+Your existing assignments are preserved when updating. The native F-key defaults
+apply to a new configuration and newly added macro keys.
 
-Start the Python unlocker first when using Razer M keys. Closing the settings
-window keeps assignments active. Reopen the app to edit them. **Settings** contains
-optional launch-at-login and tray-icon switches, plus **Quit**.
+## Background and autostart
 
-### Build and run
+Open **Settings** to control the whole application:
 
-Requires Windows x64 and the .NET 10 SDK to build. Run:
+- **Reconnect keyboard** requests a fresh hardware scan if an M key stops working.
+- **Launch at login** starts the keyboard unlocker and saved assignments after you
+  sign in, without opening the settings window.
+- **Show tray icon** adds an optional shortcut to settings and quitting. It is off
+  by default.
+- **Stop background app** stops the application and releases its assignments.
+- **GitHub** opens this repository for documentation, issues, and updates.
+
+Click **Save** after changing a setting. Closing the window keeps the unlocker and
+assignments running. Run `RazerMacroUnlocker.exe` again to reopen settings.
+
+Keep the app in its permanent folder before enabling login startup. If you move
+it later, open the new copy and save the startup setting again.
+
+Settings are stored in `%LOCALAPPDATA%\Razer Macro Unlocker\settings.json`.
+Configuration errors are reported without overwriting the file. To remove the
+app, turn off **Launch at login**, save, stop the background app, and delete its
+extracted folder. The settings file can be kept for a later installation.
+
+## Troubleshooting
+
+**An M key does nothing.** Close Synapse, reconnect the keyboard, and reopen the
+app, then use **Settings → Reconnect keyboard**. Detection is not proof of key output: test the key in the target app's
+keyboard-binding field. Some applications do not accept F13–F24.
+
+**A desktop action fails.** Create that desktop first in Windows. Desktop numbers
+follow the order in Windows' desktop overview; the app does not create or reorder
+workspaces. Windows updates may require an updated desktop adapter.
+
+**A shortcut does not reach an app.** Windows can block simulated input into an
+application running at a higher privilege level. Games can also restrict it.
+Release held modifier keys and test the target app's normal shortcut first.
+
+**Will it work with anti-cheat?** Native F-key assignments use the keyboard's
+hardware output. Normal operation installs no keyboard hook or custom driver and
+injects no code into games. Custom shortcut actions use Windows `SendInput`.
+Compatibility still depends on the game and its rules; this is not an anti-cheat
+certification.
+
+## Build from source
+
+Install the **.NET 10 SDK** and **Python 3.15** with pip, then run on Windows x64:
 
 ```powershell
+python -m pip install pyinstaller==6.22.3
 ./scripts/build-razer-app.ps1
 ./dist/RazerMacroUnlocker/RazerMacroUnlocker.exe
 ```
 
-Or double-click `start_razer-app.bat` after building. Keep the publish folder
-together. The small default build uses the installed .NET 10 Desktop Runtime;
-`./scripts/build-razer-app.ps1 -SelfContained` also bundles the runtime.
-Build output is local; nothing is installed or published by this command.
-
-Settings live in `%LOCALAPPDATA%\Razer Macro Unlocker\settings.json`. Writes use a temporary
-file and replacement. Invalid/unknown configuration is reported and preserved.
-Autostart uses only the current user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Razer Macro Unlocker`
-value and requires no administrator rights. Save after moving the application to
-update an enabled autostart path. Disabling autostart removes that value.
-
-### Design and limitations
-
-The WinUI 3 settings process is disposed when closed. An invisible native
-window receives `WM_HOTKEY` messages through `RegisterHotKey`; there is no polling
-timer, keyboard hook, or game-process injection. The editor exits when closed; the WinForms host retains only a native message window. The tray object
-is created only when enabled. Desktop assignments call the shell directly. Shortcut assignments send one chord
-through Windows SendInput, subject to foreground-app permissions and game rules.
-This design is not an anti-cheat certification.
-Hotkeys are global, so avoid assigning the same keys to actions inside games.
-
-Desktop positions follow Windows' current order. RazerMacroUnlocker never creates,
-removes, or reorders desktops. [VirtualDesktopAccessor](https://github.com/Ciantic/VirtualDesktopAccessor)
-encapsulates the internal shell API and is loaded only into this process. Windows
-updates may require updating the adapter. The download is release-pinned and
-SHA-256 verified by `scripts/setup-razer-app.ps1`; its license ships with the app.
-Errors remain visible in settings and optionally appear as tray notifications.
-
-`RazerMacroUnlocker.Core` owns settings, validation, hotkey transactions, and action dispatch;
-The background host owns native registration, desktop access, and autostart; `RazerMacroUnlocker.WinUI` edits a draft through a same-user named pipe. To add an action, extend `ActionKind`, validation,
-the dispatcher, and its editor fields. No plugin runtime or background service is
-needed. The icon source is SVG; regenerate ICO/PNG with
-`scripts/create-razer-app-icon.ps1`.
+The script builds and bundles the Python unlocker with **PyInstaller 6.22.3** and
+downloads the pinned, SHA-256-verified
+[VirtualDesktopAccessor](https://github.com/Ciantic/VirtualDesktopAccessor) DLL.
+The default local app needs the .NET 10 Desktop Runtime. To bundle it too:
 
 ```powershell
+./scripts/build-razer-app.ps1 -SelfContained
+```
+
+Keep the complete `dist/RazerMacroUnlocker` folder together. No installation,
+autostart change, or publication occurs during a build.
+
+Run the checks:
+
+```powershell
+python -m unittest discover -s tests -v
 dotnet run --project tests/RazerMacroUnlocker.Tests -c Release
-# Optional, run in an interactive Windows session:
+# Optional: checks real Windows desktop state without switching desktops
 dotnet run --project tests/RazerMacroUnlocker.Tests -c Release -- --integration
 ```
 
-The integration mode reads the actual desktop state and briefly registers/releases
-Ctrl+Alt+Shift+F24 without switching desktops. Physical M-key delivery, game
-compatibility, and login behavior need an interactive check.
+`RazerMacroUnlocker.Core` owns configuration, validation, and action dispatch.
+The host owns hardware-unlocker lifetime, native hotkeys, and autostart. The
+WinUI settings process communicates with it through a same-user named pipe and
+exits when its window closes. Background operation is event-driven.
 
----
+## Legacy command-line unlocker
 
-## Why F13–F24?
+The separate **`RazerMacroUnlocker.exe`** release asset is the original unlocker
+without the settings UI. Use the **App ZIP** above for the complete application.
+The legacy executable and `razer_unlocker.pyw` support:
 
-Standard PC keyboards only feature physical function keys from **F1** to **F12**. However, Windows natively defines Virtual-Key codes up to **F24** (`0x7C` through `0x87`).
+| Option | Purpose |
+| --- | --- |
+| `--install` | Enable legacy unlocker autostart and start it. |
+| `--uninstall` | Remove legacy autostart and stop it. |
+| `--status` | Show service state, last scan result, and detected devices. |
+| `--rescan` | Request a new device scan. |
+| `--test` | Open the interactive key-output diagnostic. |
+| `--help` | Show usage. |
 
-- **No Conflicts:** F13–F24 keys never interfere with your regular keyboard typing, numpad, or navigation keys.
-- **Native Recognition:** Games, Discord, OBS Studio, and voice chat applications immediately recognize F13–F24 as independent keys in their keybinding settings.
+The interactive diagnostic uses a temporary keyboard hook to display key events;
+Escape exits it globally. Normal background operation does not use this hook.
+The last hardware scan summary is in
+`%LOCALAPPDATA%\Razer Macro Unlocker\status.txt`.
 
----
+## Supported hardware
 
-## Download & Quick Start
-
-For standard users, **no Python installation is required**:
-
-1. **Download:** Go to the [Releases](https://github.com/JustAmply/razer-macro-unlocker/releases) page and download **`RazerMacroUnlocker.exe`** (or the complete **`RazerMacroUnlocker-windows-x64.zip`** bundle).
-2. **Run Once:** Launch `RazerMacroUnlocker.exe`. It unlocks all connected Razer keyboards immediately and runs silently in the background.
-3. **Autostart with Windows (Optional):**
-   - Double-click **`install_autostart.bat`** (or run `RazerMacroUnlocker.exe --install` in a terminal).
-   - This registers the application in the Windows Registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) and starts the service.
-
-> [!IMPORTANT]
-> **Razer Synapse Interaction:**
-> If Razer Synapse is running at the same time, it may overwrite the keyboard mode. It is recommended to close or disable the autostart of Razer Synapse to avoid mode conflicts.
-
-> [!TIP]
-> **Keybinding in Games & Discord:**
-> In any game, Discord, or OBS keybinding menu, simply press your physical **M1–M5** key when prompted — it will register directly as **F13–F17**.
-
----
-
-## Command-Line Interface (CLI)
-
-`RazerMacroUnlocker.exe` (and `razer_unlocker.pyw`) supports built-in command-line arguments:
-
-```powershell
-# Configure autostart with Windows and start background service
-.\RazerMacroUnlocker.exe --install   # (or -i)
-
-# Remove autostart entry and stop running background service
-.\RazerMacroUnlocker.exe --uninstall # (or -u)
-
-# Run interactive diagnostic test and live keystroke monitor
-.\RazerMacroUnlocker.exe --test      # (or -t)
-
-# List detected Razer control devices and their status
-.\RazerMacroUnlocker.exe --status    # (or -s)
-
-# Send an immediate re-scan signal to the running background service
-.\RazerMacroUnlocker.exe --rescan    # (or -r)
-
-# Display help message
-.\RazerMacroUnlocker.exe --help      # (or -h)
-```
-
-`--status` shows whether the background service is running, whether autostart is configured,
-the last scan result, and detected control devices. Detection alone does not prove that
-the macro keys are unlocked. Use `--test` and press a macro key to verify its F13–F24 output.
-`--rescan` returns a successful exit code when its request reaches the running service;
-the last scan result appears under `--status` after the service processes it. Without a
-running service, `--rescan` attempts to unlock directly and reports failure with exit code 1.
-Invalid options return exit code 2. The interactive test's Escape key is global while
-the listener is active, so it works even when another window has focus.
-
----
-
-## Key Mapping
-
-| Physical Key | Virtual-Key Code | Windows Virtual Key | Hardware ScanCode |
-| :--- | :--- | :--- | :--- |
-| **M1** | `0x7C` (124) | **`F13`** | `0x64` |
-| **M2** | `0x7D` (125) | **`F14`** | `0x65` |
-| **M3** | `0x7E` (126) | **`F15`** | `0x66` |
-| **M4** | `0x7F` (127) | **`F16`** | `0x67` |
-| **M5** | `0x80` (128) | **`F17`** | `0x68` |
-| **M6 / Keypad** | `0x81` (129) | **`F18`** | `0x69` |
-| **M7 / Keypad** | `0x82` (130) | **`F19`** | `0x6A` |
-| **M8 / Keypad** | `0x83` (131) | **`F20`** | `0x6B` |
-| **Keypad** | `0x84` (132) | **`F21`** | `0x6C` |
-| **Keypad** | `0x85` (133) | **`F22`** | `0x6D` |
-| **Keypad** | `0x86` (134) | **`F23`** | `0x6E` |
-| **Keypad** | `0x87` (135) | **`F24`** | `0x6F` |
-
----
-
-## Supported Devices
-
-All Razer devices share Vendor ID `0x1532`. Unlisted Razer keyboards are dynamically detected and supported through an automatic fallback mechanism.
+The native sequence is M1 → F13, M2 → F14, through M12 → F24, where supported by
+the device. Keypads can expose the extended range. Known device IDs are listed
+below; the unlocker also attempts discovery of other Razer devices. A listed ID
+is not a guarantee of verification on every hardware revision.
 
 <details>
-<summary><b>Click to expand the list of tested devices (25+ models)</b></summary>
-
-<br>
+<summary>Device IDs and native output</summary>
 
 | Device Model | USB Product ID (PID) | Macro Key Layout | Native Output |
 | :--- | :--- | :--- | :--- |
@@ -219,66 +185,3 @@ All Razer devices share Vendor ID `0x1532`. Unlisted Razer keyboards are dynamic
 | **Any Unlisted Razer Device** | `VID: 0x1532` | Automatic Detection | Dynamic Fallback (0x1F / 0x00) |
 
 </details>
-
----
-
-## Running from Source & Building
-
-### Option A: Run directly with Python
-1. Install Python 3.15 (currently a pre-release).
-2. Launch the script directly:
-   ```powershell
-   # Run in background
-   python razer_unlocker.pyw
-
-   # Or configure autostart
-   python razer_unlocker.pyw --install
-   ```
-   *(Note: The `.bat` helper scripts are intended for `RazerMacroUnlocker.exe`.)*
-
-### Option B: Build Standalone .exe Locally
-1. Run **`build_exe.bat`** (requires Python with `pip` or `uv`).
-2. PyInstaller compiles `razer_unlocker.pyw` into `dist\RazerMacroUnlocker.exe`.
-
-Run `python -m unittest discover -s tests -v` on Windows to check the HID,
-service, and CLI contracts. GitHub Actions runs these tests on changes and before
-building a release, then smoke-tests the bundled executable. Physical macro-key
-output still needs a connected device and the interactive `--test` command.
-
-The release build uses Python 3.15 and PyInstaller 6.22.3. Until Python 3.15
-has a stable release, GitHub Actions selects its latest available pre-release.
-The local build script uses an isolated `.venv-3.15` when `uv` is unavailable.
-With Python 3.15.0b2 and PyInstaller 6.22.3, excluding unused cryptography
-modules reduced the executable from 10,172,593 to 7,542,490 bytes (25.9%).
-
----
-
-## Live Diagnostic & Testing
-
-To test device detection and see your keystrokes live:
-- Run **`run_test.bat`** (or execute `RazerMacroUnlocker.exe --test` / `python razer_unlocker.pyw --test`).
-- An interactive console opens, lists detected devices, unlocks them, and logs all incoming keystrokes in real time. Press `Escape` to close the test.
-
-The background service writes its latest scan summary to
-`%LOCALAPPDATA%\Razer Macro Unlocker\status.txt`. This reports whether an HID feature report
-was accepted; the interactive key test is still needed to confirm actual key output.
-
----
-
-## How It Works & Anti-Cheat Safety
-
-1. **Device Enumeration:** The tool queries Windows HID device interfaces to locate connected devices matching Razer's Vendor ID (`0x1532`) that feature a 91-byte control endpoint.
-2. **Feature Report:** It sends a standard HID Feature Report (`HidD_SetFeature`) requesting Mode `0x02` (Legacy Mode).
-3. **Hardware Keystrokes:** The keyboard microcontroller begins sending hardware scancodes for `F13` through `F17` directly over USB.
-4. **Passive Monitoring:** A hidden window listens for Windows system messages (`WM_DEVICECHANGE`, `WM_POWERBROADCAST`, and `WM_WTSSESSION_CHANGE`) to re-unlock devices automatically upon reconnect or wake-up.
-
-> [!NOTE]
-> **Anti-Cheat Clarification:**
-> In normal background service mode, the application **never** installs keyboard hooks (`SetWindowsHookEx`) or intercepts keystrokes. Input goes directly from the Windows HID driver into your active application or game. A temporary low-level keyboard hook is used **only** while running the interactive diagnostic test (`--test`) to print key codes to the console.
-
----
-
-## Uninstallation
-
-- Run **`uninstall_autostart.bat`** (or `RazerMacroUnlocker.exe --uninstall`).
-- This removes the Windows Registry autostart entry and terminates any running background service instances.
